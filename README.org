@@ -5,3 +5,4 @@ this is a small project to test out the knowledge in chapter 4 of [[https://mitp
 #+begin_src bash
 calculator <option> code
 #+end_src
+where option can be "-f/--file" to read code from file, "-e/--eval" to read from commandline arguments, "-h/--help" to get help
