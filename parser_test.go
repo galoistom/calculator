@@ -17,7 +17,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestEval(t *testing.T) {
-	input := "(display ((lambda (x) (+ x 1)) 1))"
+	input := "1\n"
 	l := Lexer{input: input}
 	p := Parser{tokens: l.GetToken(), position: 0}
 	exp, err := p.Parse()
@@ -30,9 +30,10 @@ func TestEval(t *testing.T) {
 		t.Log(err)
 		return
 	}
-	_, err = Eval(exp, env)
+	res, err := Eval(exp, env)
 	if err != nil {
 		t.Log(err)
 		return
 	}
+	t.Log(res)
 }

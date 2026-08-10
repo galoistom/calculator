@@ -195,7 +195,9 @@ func (p *Parser) ParseSequence() ([]Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		res = append(res, t)
+		if t != nil {
+			res = append(res, t)
+		}
 	}
 	return res, nil
 }

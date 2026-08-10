@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
 
 type Expr interface {
 	exprNode()
+	Print() string
 }
 
 type Environment struct {
@@ -40,6 +43,9 @@ func (env Environment) extend_environment(vars []Expr, vals []Expr) (Environment
 	return Environment{}, errors.New("numbers of values and variables dose not match")
 }
 func (env *Environment) exprNode() {}
+func (env *Environment) Print() string {
+	return fmt.Sprint(*env)
+}
 
 type stringNumber struct {
 	Value string
@@ -50,6 +56,9 @@ type Number struct {
 }
 
 func (Number) exprNode() {}
+func (n Number) Print() string {
+	return n.value.Print()
+}
 
 func (x stringNumber) getValue() (Number, error) {
 	num := x.Value
@@ -88,148 +97,191 @@ type Symbol struct {
 }
 
 func (Symbol) exprNode() {}
+func (s Symbol) Print() string {
+	return fmt.Sprintf("'%s", s.content)
+}
 
 type List struct {
 	args []Expr
 }
 
 func (List) exprNode() {}
+func (l List) Print() string {
+	var b strings.Builder
+	b.WriteString("(listof")
+	for _, i := range l.args {
+		fmt.Fprintf(&b, " %s", i.Print())
+	}
+	b.WriteString(")")
+	return b.String()
+}
 
-var primitiveAction = map[string]func([]Expr) (Expr, error){
-	"car": func(args []Expr) (Expr, error) {
-		if len(args) == 1 {
-			return args[0].(List).args[0], nil
-		}
-		return nil, fmt.Errorf("wrong number of arguments of car, need 1, get %d", len(args))
-	},
-	"cdr": func(args []Expr) (Expr, error) {
-		if len(args) == 1 {
-			return List{args: args[0].(List).args[1:]}, nil
-		}
-		return nil, fmt.Errorf("wrong number of arguments of cdr, need 1, get %d", len(args))
-	},
-	"display": func(args []Expr) (Expr, error) {
-		for _, i := range args {
-			switch j := i.(type) {
-			case Number:
-				fmt.Println(j.value.Print())
-			case Symbol:
-				fmt.Printf("'%+v\n", j)
-			case List:
-				fmt.Printf("List: %+v\n", j)
-			default:
-				fmt.Println(j)
-			}
-		}
-		return nil, nil
-	},
-	"eq?": func(args []Expr) (Expr,error){
-		if len(args)==2{
-			if args[0]==args[1]{
-				return Symbol{content:"true"},nil
-			}
-			return Symbol{content:"false"},nil
-		}
-		return nil, fmt.Errorf("wrong number of arguments of eq?, need 1, get %d", len(args))
-	},
-	"list": func(args []Expr) (Expr, error) {
-		return List{args: args}, nil
-	},
-	"+": func(args []Expr) (Expr, error) {
-		if len(args) == 2 {
-			a := args[0].(Number).value
-			b := args[1].(Number).value
-			return Number{value: Add(a, b)}, nil
-		}
-		return nil, errors.New("args legth incorrect to call + ")
-	},
-	"-": func(args []Expr) (Expr, error) {
-		if len(args) == 2 {
-			a := args[0].(Number).value
-			b := args[1].(Number).value
-			return Number{value: Minu(a, b)}, nil
-		}
-		if len(args) == 1 {
-			a := args[0].(Number).value
-			return Number{value: Minu(Integer(0), a)}, nil
-		}
-		return nil, errors.New("args legth incorrect to call - ")
-	},
-	"*": func(args []Expr) (Expr, error) {
-		if len(args) == 2 {
-			a := args[0].(Number).value
-			b := args[1].(Number).value
-			return Number{value: Times(a, b)}, nil
-		}
-		return nil, errors.New("args legth incorrect to call * ")
-	},
-	"/": func(args []Expr) (Expr, error) {
-		if len(args) == 2 {
-			a := args[0].(Number).value
-			b := args[1].(Number).value
-			res, err := Div(a, b)
-			return Number{value: res}, err
-		}
-		return nil, errors.New("args legth incorrect to call / ")
-	},
-	"=": func(args []Expr) (Expr, error){
-		if len(args)==2{
-			a := args[0].(Number).value
-			b := args[1].(Number).value
-			if IsZero(Minu(a,b)){
-				return Symbol{content:"true"},nil
-			}
-			return Symbol{content:"false"},nil
+type Action struct {
+	name string
+	f    func([]Expr) (Expr, error)
+}
 
-		}
-		return nil, errors.New("args legth incorrect to call = ")
-	},
-	"pow": func(args []Expr) (Expr, error) {
-		if len(args) == 2 {
-			a := args[0].(Number).value
-			b := args[1].(Number).value
-			x, ok := b.(Integer)
-			if !ok {
-				return Number{value: x}, errors.New("none integer power is not implemented yet")
-			}
-			return Number{value: Power(a, int(x))}, nil
-		}
-		return nil, errors.New("args legth incorrect to call pow ")
-	},
-	"c": func(args []Expr) (Expr, error) {
-		if len(args) == 2 {
-			a := args[0].(Number).value
-			b := args[1].(Number).value
-			return Number{value: Add(a, Times(Complex{a: 0, b: 1}, b))}, nil
-		}
-		return nil, errors.New("args legth incorrect to call c ")
-	},
-	"abs": func(args []Expr) (Expr, error) {
-		if len(args) == 1 {
-			a := args[0].(Number).value
-			return Number{value: Abs(a)}, nil
-		}
-		return nil, errors.New("args legth incorrect to call abs ")
-	},
-	"int": func(args []Expr) (Expr, error) {
-		if len(args) == 1 {
-			a := args[0].(Number).value
-			res, err := Int(a)
-			return Number{value: res}, err
-		}
-		return nil, errors.New("args legth incorrect to call abs ")
-	},
+func (Action) exprNode() {}
+
+func (f Action) Print() string {
+	return f.name
 }
 
 func InitEnvironment() (*Environment, error) {
-	env := Environment{[]frame{frame{
-		"true": Symbol{content:"true"},
-		"false": Symbol{content:"false"}}}}
+	env := Environment{[]frame{{
+		"true":  Symbol{content: "true"},
+		"false": Symbol{content: "false"}}}}
 	vals := []Expr{}
 	vars := []Expr{}
+	var primitiveAction = map[string]Action{
+		"car": {name: "car",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					return args[0].(List).args[0], nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of car, need 1, get %d", len(args))
+			}},
+		"cdr": {name: "cdr",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					return List{args: args[0].(List).args[1:]}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of cdr, need 1, get %d", len(args))
+			}},
+		"display": {name: "display",
+			f: func(args []Expr) (Expr, error) {
+				for _, i := range args {
+					fmt.Println(i.Print())
+				}
+				return nil, nil
+			}},
+		"eq?": {name: "eq?",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					if args[0] == args[1] {
+						return Symbol{content: "true"}, nil
+					}
+					return Symbol{content: "false"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of eq?, need 1, get %d", len(args))
+			}},
+		"list": {name: "list",
+			f: func(args []Expr) (Expr, error) {
+				return List{args: args}, nil
+			}},
+		"readline": {name: "readline",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 0 {
+					scanner := bufio.NewScanner(os.Stdin)
+					fmt.Print("input:")
+					if scanner.Scan() {
+						line := scanner.Text()
+						return Process(line)
+					}
+					if err := scanner.Err(); err != nil {
+						fmt.Println("failed to read", err)
+					}
+				}
+				return nil, errors.New("readline should not have any args")
+			}},
+		"+": {name: "+",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					return Number{value: Add(a, b)}, nil
+				}
+				return nil, errors.New("args legth incorrect to call + ")
+			}},
+		"-": {name: "-",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					return Number{value: Minu(a, b)}, nil
+				}
+				if len(args) == 1 {
+					a := args[0].(Number).value
+					return Number{value: Minu(Integer(0), a)}, nil
+				}
+				return nil, errors.New("args legth incorrect to call - ")
+			}},
+		"*": {name: "*",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					return Number{value: Times(a, b)}, nil
+				}
+				return nil, errors.New("args legth incorrect to call * ")
+			}},
+		"/": {name: "/",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					res, err := Div(a, b)
+					return Number{value: res}, err
+				}
+				return nil, errors.New("args legth incorrect to call / ")
+			}},
+		"=": {name: "=",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					if IsZero(Minu(a, b)) {
+						return Symbol{content: "true"}, nil
+					}
+					return Symbol{content: "false"}, nil
+
+				}
+				return nil, errors.New("args legth incorrect to call = ")
+			}},
+		"pow": {name: "pow",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					x, ok := b.(Integer)
+					if !ok {
+						return Number{value: x}, errors.New("none integer power is not implemented yet")
+					}
+					return Number{value: Power(a, int(x))}, nil
+				}
+				return nil, errors.New("args legth incorrect to call pow ")
+			}},
+		"c": {name: "c",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					return Number{value: Add(a, Times(Complex{a: 0, b: 1}, b))}, nil
+				}
+				return nil, errors.New("args legth incorrect to call c ")
+			}},
+		"abs": {name: "abs",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					a := args[0].(Number).value
+					return Number{value: Abs(a)}, nil
+				}
+				return nil, errors.New("args legth incorrect to call abs ")
+			}},
+		"int": {name: "int",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					a := args[0].(Number).value
+					res, err := Int(a)
+					return Number{value: res}, err
+				}
+				return nil, errors.New("args legth incorrect to call abs ")
+			}},
+	}
+
 	for i := range primitiveAction {
 		vars = append(vars, Symbol{content: i})
-		vals = append(vals, List{args: []Expr{Symbol{content: "primitive"}, Symbol{content: i}}})
+		vals = append(vals, List{args: []Expr{Symbol{content: "primitive"}, primitiveAction[i]}})
 	}
 	new_env, err := env.extend_environment(vars, vals)
 	if err != nil {
@@ -526,12 +578,8 @@ func condToIf(exps []Expr) (Expr, error) {
 }
 
 func primitiveApply(proc List, args []Expr) (Expr, error) {
-	if p, ok := proc.args[1].(Symbol); ok {
-		f, ok := primitiveAction[p.content]
-		if ok {
-			return f(args)
-		}
-		return nil, errors.New("no such primitive application")
+	if p, ok := proc.args[1].(Action); ok {
+		return p.f(args)
 	}
 	return nil, errors.New("Wrong type for primitive procedure")
 }
@@ -564,7 +612,7 @@ func evalApply(exps []Expr, env *Environment) (Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	argusments := make([]Expr,len(exps)-1)
+	argusments := make([]Expr, len(exps)-1)
 	for i, e := range exps[1:] {
 		res, err := Eval(e, env)
 		if err != nil {
