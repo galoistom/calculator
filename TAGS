@@ -1,0 +1,125 @@
+
+eval.go,1002
+package main1,0
+type Expr 10,65
+type Environment 14,102
+type frame 17,143
+func make_frame(19,171
+func (env Environment) extend_environment(31,438
+func (env *Environment) exprNode(42,798
+type stringNumber 44,837
+type Number 48,881
+func (Number) exprNode(52,918
+func (x stringNumber) getValue(54,947
+type Symbol 86,1738
+func (Symbol) exprNode(90,1778
+type List 92,1807
+func (List) exprNode(96,1842
+func InitEnvironment(203,4830
+func lookUpVariable(218,5221
+func evalAssignment(228,5465
+func definitionVariable(246,5869
+func makeLambda(262,6228
+func definitionValue(266,6367
+func evalDefinition(276,6537
+func sequenceToExp(286,6759
+func splitVarVal(297,6949
+func evalLet(323,7561
+func evalTrue(360,8670
+func evalIf(372,8929
+func evalOr(391,9318
+func evalAnd(411,9701
+func makeProcedure(431,10087
+func evalSequence(439,10356
+func evalCond(454,10652
+func condToIf(462,10805
+func primitiveApply(504,11913
+func apply(515,12210
+func evalApply(537,12817
+func Eval(553,13159
+
+main.go,33
+package main1,0
+func main(8,39
+
+parse.go,417
+package main1,0
+type Lexer 8,47
+type TokenType 13,101
+type Token 24,192
+func (l *Lexer) getNumber(29,246
+func (l *Lexer) getOp(46,519
+func isQuote(62,740
+func isOperator(65,790
+func isSymbol(73,895
+func isLetter(77,997
+func isDigit(85,1174
+func (l *Lexer) skipWhitespace(89,1237
+func (l *Lexer) nextToken(101,1453
+func (l *Lexer) GetToken(129,2022
+type Parser 138,2194
+func (p *Parser) Parse(143,2250
+
+parser_test.go,60
+package main1,0
+func TestParse(7,37
+func TestEval(19,270
+
+types.go,1544
+package main1,0
+type Type 10,62
+type Integer 20,176
+func (Integer) Type(22,194
+func (a Integer) add(26,242
+func (a Integer) minu(30,301
+func (a Integer) times(34,361
+func (a Integer) divUp(38,422
+func (a Integer) divDown(42,509
+func (a Integer) mod(49,657
+func (a Integer) Abs(53,716
+func (a Integer) Print(60,789
+type Rational 65,886
+func (Rational) Type(70,926
+func (a Rational) simp(74,980
+func (a Rational) neg(88,1145
+func (a Rational) inv(95,1225
+func (a Rational) add(105,1395
+func (a Rational) times(112,1511
+func (a Rational) minu(119,1621
+func (a Rational) div(123,1693
+func (a Rational) Int(131,1829
+func (a Rational) Abs(135,1893
+func (x Rational) Print(142,2001
+type Real 150,2163
+func (Real) Type(152,2182
+func (a Real) add(156,2228
+func (a Real) minu(160,2278
+func (a Real) times(164,2329
+func (a Real) div(168,2381
+func (a Real) Int(175,2516
+func (a Real) Abs(179,2568
+func (x Real) Print(186,2635
+type Complex 194,2808
+func (Complex) Type(199,2855
+func (x Complex) neg(203,2907
+func (x Complex) inv(210,2985
+func (x Complex) add(221,3163
+func (x Complex) times(228,3260
+func (x Complex) minu(235,3375
+func (x Complex) div(239,3444
+func (x Complex) Abs(247,3577
+func (x Complex) Print(251,3653
+type Value 263,3904
+func nextType(268,3959
+func upOnce(281,4139
+func upTo(294,4366
+func levelUp(301,4454
+func Add(313,4663
+func Minu(329,4955
+func Times(345,5252
+func Div(361,5554
+func Int(389,6054
+func Abs(402,6265
+func oneOf(417,6488
+func Power(432,6736
+func IsZero(444,6890
