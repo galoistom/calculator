@@ -584,17 +584,22 @@ func primitiveApply(proc List, args []Expr) (Expr, error) {
 	return nil, errors.New("Wrong type for primitive procedure")
 }
 
-func apply(proc Expr, args []Expr) (Expr, error) {
+func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
 	if pro, ok := proc.(List); ok {
 		if pr, ok := pro.args[0].(Symbol); ok {
 			switch pr.content {
 			case "primitive":
-				return primitiveApply(pro, args)
+				a, err := listOfArgValues(args, env)
+				if err != nil {
+					return nil, err
+				}
+				return primitiveApply(pro, a)
 			case "procedure":
 				if old_env, ok := pro.args[3].(*Environment); ok {
 					procedure_body := pro.args[2].(List).args
 					procedure_para := pro.args[1].(List).args
-					new_env, err := old_env.extend_environment(procedure_para, args)
+					a := listOfDelayedArgs(args, env)
+					new_env, err := old_env.extend_environment(procedure_para, a)
 					if err != nil {
 						return nil, err
 					}
@@ -612,15 +617,59 @@ func evalApply(exps []Expr, env *Environment) (Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	argusments := make([]Expr, len(exps)-1)
-	for i, e := range exps[1:] {
-		res, err := Eval(e, env)
+	return apply(procedure, exps[1:], env)
+}
+
+func delayIt(exps Expr, env *Environment) Expr {
+	return &List{args: append([]Expr{Symbol{content: "thunk"}}, exps, env)}
+}
+
+func listOfDelayedArgs(exps []Expr, env *Environment) []Expr {
+	res := make([]Expr, len(exps))
+	for k, i := range exps {
+		res[k] = delayIt(i, env)
+	}
+	return res
+}
+
+func listOfArgValues(exps []Expr, env *Environment) ([]Expr, error) {
+	res := make([]Expr, len(exps))
+	var err error
+	for k, i := range exps {
+		res[k], err = actualValue(i, env)
 		if err != nil {
 			return nil, err
 		}
-		argusments[i] = res
 	}
-	return apply(procedure, argusments)
+	return res, nil
+}
+
+func forceIt(obj *List) (Expr, error) {
+	if x, ok := obj.args[0].(Symbol); ok {
+		switch x.content {
+		case "thunk":
+			result, err := actualValue(obj.args[1], obj.args[2].(*Environment))
+			if err != nil {
+				return nil, err
+			}
+			obj.args = []Expr{Symbol{content: "evaluated-thunk"}, result, nil}
+			return result, nil
+		case "evaluated-thunk":
+			return obj.args[1], nil
+		}
+	}
+	return obj, nil
+}
+
+func actualValue(exp Expr, env *Environment) (Expr, error) {
+	res, err := Eval(exp, env)
+	if err != nil {
+		return nil, err
+	}
+	if l, ok := res.(*List); ok {
+		return forceIt(l)
+	}
+	return res, nil
 }
 
 func Eval(exp Expr, env *Environment) (Expr, error) {

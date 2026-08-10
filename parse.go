@@ -45,7 +45,7 @@ func (l *Lexer) getOp() Token {
 		Type: IDENT,
 	}
 	var ch byte
-	for true {
+	for l.position < len(l.input) {
 		ch = l.input[l.position]
 		if isSymbol(ch) {
 			res.Value += string(ch)
