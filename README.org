@@ -1,0 +1,7 @@
+#+title: Calculator
+this is a small project to test out the knowledge in chapter 4 of [[https://mitp-content-server.mit.edu/books/content/sectbyfn/books_pres_0/6515/sicp.zip/full-text/book/book-Z-H-4.html#%_toc_start][SICP]], it is basically a lisp interpreter that implement a sub of [[https://docs.racket-lang.org/r5rs/r5rs-std/r5rs-Z-H-2.html#%_toc_start][r5rs]], but have a few more function realted to the mathmaticall calculation
+
+* Usage
+#+begin_src bash
+calculator <option> code
+#+end_src
