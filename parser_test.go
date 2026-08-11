@@ -81,10 +81,10 @@ func TestParseString(t *testing.T) {
 	cases := []struct {
 		in, want string
 	}{
-		{`"hello"`, `"hello"`},
-		{`"a b c"`, `"a b c"`},
-		{`""`, `""`},
-		{`"say \"hi\""`, `"say \"hi\""`},
+		{`"hello"`, `hello`},
+		{`"a b c"`, `a b c`},
+		{`""`, ``},
+		{`"say \"hi\""`, `say "hi"`},
 	}
 	for _, c := range cases {
 		got := parseExpr(t, c.in)

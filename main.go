@@ -25,28 +25,33 @@ func Process(code string) (Expr, error) {
 	return res, nil
 }
 
+func ReadFile(path string) (string, error){
+	file, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	return string(file),nil
+}
+
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Println("usage: calculator <filename>")
 		return
 	}
 	input := ""
+	var err error
 	switch os.Args[1] {
 	case "--help", "-h":
 		fmt.Println("usage: calculator <filename>")
 		return
 	case "--file", "-f":
 		filepath := os.Args[2]
-		file, err := os.ReadFile(filepath)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		input = string(file)
+		input,err=ReadFile(filepath)
+		if err!=nil{fmt.Println(err);return}
 	case "--eval", "-e":
 		input = os.Args[2]
 	}
-	var err error
 	environment, err = InitEnvironment()
 	if err != nil {
 		fmt.Println(err)

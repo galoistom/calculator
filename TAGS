@@ -1,159 +1,173 @@
 
-eval.go,1370
+eval.go,1326
 package main1,0
-type Expr 12,80
-type Environment 17,133
-type frame 20,174
-func make_frame(22,202
-func (env Environment) extend_environment(34,469
-func (env *Environment) exprNode(45,829
-func (env *Environment) Print(46,867
-type stringNumber 50,936
-type Number 54,980
-func (Number) exprNode(58,1017
-func (n Number) Print(59,1045
-func (x stringNumber) getValue(63,1105
-type Symbol 95,1896
-func (Symbol) exprNode(99,1936
-func (s Symbol) Print(100,1964
-type List 104,2038
-func (List) exprNode(108,2073
-func (l List) Print(109,2099
-type Action 119,2288
-func (Action) exprNode(124,2358
-func (f Action) Print(126,2387
-func InitEnvironment(130,2438
-func lookUpVariable(293,7176
-func evalAssignment(303,7420
-func definitionVariable(321,7824
-func makeLambda(337,8183
-func definitionValue(341,8322
-func evalDefinition(351,8492
-func sequenceToExp(361,8714
-func splitVarVal(372,8904
-func evalLet(398,9516
-func evalTrue(435,10625
-func evalIf(447,10884
-func evalOr(466,11273
-func evalAnd(486,11656
-func makeProcedure(506,12042
-func EvalSequence(515,12315
-func evalCond(530,12611
-func condToIf(538,12764
-func primitiveApply(580,13872
-func apply(587,14060
-func evalApply(615,14832
-func delayIt(623,15013
-func listOfDelayedArgs(627,15138
-func listOfArgValues(635,15304
-func forceIt(647,15547
-func actualValue(664,15951
-func Eval(675,16152
+func make_frame(12,80
+func (env Environment) extend_environment(24,347
+func (env *Environment) exprNode(35,707
+func (env *Environment) Print(36,745
+func (Number) exprNode(40,814
+func (n Number) Print(41,842
+func (x stringNumber) getValue(45,902
+func (Symbol) exprNode(77,1693
+func (s Symbol) Print(78,1721
+func (List) exprNode(82,1795
+func (l List) Print(83,1821
+func (Action) exprNode(93,2010
+func (f Action) Print(95,2039
+func InitEnvironment(99,2090
+func lookUpVariable(274,7218
+func evalAssignment(284,7462
+func definitionVariable(302,7866
+func makeLambda(318,8225
+func definitionValue(322,8364
+func evalDefinition(332,8534
+func sequenceToExp(342,8756
+func splitVarVal(353,8946
+func evalLet(375,9461
+func evalTrue(412,10560
+func evalIf(424,10819
+func evalOr(443,11208
+func evalAnd(463,11591
+func makeProcedure(483,11977
+func EvalSequence(492,12250
+func evalCond(507,12546
+func condToIf(515,12699
+func primitiveApply(557,13807
+func apply(564,13995
+func evalApply(592,14767
+func delayIt(600,14948
+func listOfDelayedArgs(604,15073
+func listOfArgValues(612,15239
+func forceIt(624,15482
+func actualValue(641,15886
+func evalMap(652,16087
+func evalFilter(667,16447
+func evalListRef(685,16866
+func evalListSet(697,17208
+func evalListTail(712,17621
+func Eval(724,17972
 
-main.go,55
+main.go,77
 package main1,0
 func Process(10,69
-func main(24,355
+func ReadFile(28,403
+func main(37,563
 
-parse.go,456
+parse.go,409
 package main1,0
-type Lexer 5,28
-type TokenType 10,82
-type Token 21,173
-func (l *Lexer) getNumber(26,227
-func (l *Lexer) getOp(43,500
-func isQuote(59,742
-func isOperator(62,792
-func isSymbol(70,897
-func isLetter(74,999
-func isDigit(82,1176
-func (l *Lexer) skipWhitespace(86,1239
-func (l *Lexer) nextToken(98,1455
-func (l *Lexer) GetToken(126,2024
-type Parser 135,2196
-func (p *Parser) Parse(140,2252
-func (p *Parser) ParseSequence(189,3258
+func (l *Lexer) getNumber(5,28
+func (l *Lexer) getOp(22,301
+func isQuote(38,543
+func isOperator(41,593
+func isSymbol(49,698
+func isLetter(53,800
+func isDigit(61,992
+func (l *Lexer) skipWhitespace(65,1055
+func (l *Lexer) getString(77,1271
+func (l *Lexer) nextToken(101,1722
+func (l *Lexer) GetToken(131,2325
+func (p *Parser) Parse(140,2497
+func (p *Parser) ParseSequence(192,3571
 
-parser_test.go,703
+parser_test.go,869
 package main1,0
 func parseExpr(8,48
 func parseSequence(19,285
 func TestParseNumber(30,544
 func TestParseNumberTypes(50,963
 func TestParseSymbol(72,1550
-func TestParseList(80,1729
-func TestParseQuote(97,2198
-func TestParseSequence(112,2645
-func TestParseErrors(119,2802
-func evalCode(140,3317
-func mustEval(157,3655
-func mustError(168,3900
-func TestEvalArithmetic(179,4220
-func TestEvalListAndQuote(203,4710
-func TestEvalConditionals(209,4899
-func TestEvalLambda(219,5231
-func TestEvalIdentityReturnsThunk(226,5452
-func TestEvalDefineAndRecursion(245,5994
-func TestEvalErrors(252,6312
-func TestLazyArguments(260,6630
-func evalWithCounter(265,6782
-func TestLazyMemoization(296,7494
+func TestParseString(80,1729
+func TestParseStringInList(101,2183
+func TestParseUnterminatedString(115,2584
+func TestParseList(126,2852
+func TestParseQuote(143,3321
+func TestParseSequence(158,3768
+func TestParseErrors(165,3925
+func evalCode(186,4440
+func mustEval(203,4778
+func mustError(214,5023
+func TestEvalArithmetic(225,5343
+func TestEvalListAndQuote(249,5833
+func TestEvalConditionals(255,6022
+func TestEvalLambda(265,6354
+func TestEvalIdentityReturnsThunk(272,6575
+func TestEvalDefineAndRecursion(291,7117
+func TestEvalErrors(298,7435
+func TestLazyArguments(306,7753
+func TestLetBindingsAreValuesNotReevaluated(311,7905
+func evalWithCounter(317,8143
+func TestLazyMemoization(348,8855
 
-types.go,1544
+types.go,1896
 package main1,0
-type Type 10,62
-type Integer 20,176
-func (Integer) Type(22,194
-func (a Integer) add(26,242
-func (a Integer) minu(30,301
-func (a Integer) times(34,361
-func (a Integer) divUp(38,422
-func (a Integer) divDown(42,509
-func (a Integer) mod(49,657
-func (a Integer) Abs(53,716
-func (a Integer) Print(60,789
-type Rational 65,886
-func (Rational) Type(70,926
-func (a Rational) simp(74,980
-func (a Rational) neg(88,1145
-func (a Rational) inv(95,1225
-func (a Rational) add(105,1395
-func (a Rational) times(112,1511
-func (a Rational) minu(119,1621
-func (a Rational) div(123,1693
-func (a Rational) Int(131,1829
-func (a Rational) Abs(135,1893
-func (x Rational) Print(142,2001
-type Real 150,2163
-func (Real) Type(152,2182
-func (a Real) add(156,2228
-func (a Real) minu(160,2278
-func (a Real) times(164,2329
-func (a Real) div(168,2381
-func (a Real) Int(175,2516
-func (a Real) Abs(179,2568
-func (x Real) Print(186,2635
-type Complex 194,2808
-func (Complex) Type(199,2855
-func (x Complex) neg(203,2907
-func (x Complex) inv(210,2985
-func (x Complex) add(221,3163
-func (x Complex) times(228,3260
-func (x Complex) minu(235,3375
-func (x Complex) div(239,3444
-func (x Complex) Abs(247,3577
-func (x Complex) Print(251,3653
-type Value 263,3904
-func nextType(268,3959
-func upOnce(281,4139
-func upTo(294,4366
-func levelUp(301,4454
-func Add(313,4663
-func Minu(329,4955
-func Times(345,5252
-func Div(361,5554
-func Int(389,6054
-func Abs(402,6265
-func oneOf(417,6488
-func Power(432,6736
-func IsZero(444,6890
+type Expr 11,87
+type Environment 16,140
+type frame 20,182
+type stringNumber 22,210
+type Number 26,254
+type Symbol 30,291
+type List 34,331
+type Action 38,366
+type String 43,436
+type TokenType 48,502
+type Token 60,601
+type Lexer 65,655
+type Parser 70,709
+type Type 75,765
+type Integer 85,879
+func (Integer) Type(87,897
+func (a Integer) add(91,945
+func (a Integer) minu(95,1004
+func (a Integer) times(99,1064
+func (a Integer) divUp(103,1125
+func (a Integer) divDown(107,1212
+func (a Integer) mod(114,1360
+func (a Integer) Abs(118,1419
+func (a Integer) Print(125,1492
+type Rational 130,1589
+func (Rational) Type(135,1629
+func (a Rational) simp(139,1683
+func (a Rational) neg(153,1848
+func (a Rational) inv(160,1928
+func (a Rational) add(170,2098
+func (a Rational) times(177,2214
+func (a Rational) minu(184,2324
+func (a Rational) div(188,2396
+func (a Rational) Int(196,2532
+func (a Rational) Abs(200,2596
+func (x Rational) Print(207,2704
+type Real 215,2866
+func (Real) Type(217,2885
+func (a Real) add(221,2931
+func (a Real) minu(225,2981
+func (a Real) times(229,3032
+func (a Real) div(233,3084
+func (a Real) Int(240,3219
+func (a Real) Abs(244,3271
+func (x Real) Print(251,3338
+type Complex 259,3511
+func (Complex) Type(264,3558
+func (x Complex) neg(268,3610
+func (x Complex) inv(275,3688
+func (x Complex) add(286,3866
+func (x Complex) times(293,3963
+func (x Complex) minu(300,4078
+func (x Complex) div(304,4147
+func (x Complex) Abs(312,4280
+func (x Complex) Print(316,4356
+func (String) exprNode(327,4588
+func (s String) Print(329,4617
+type Value 334,4709
+func nextType(339,4764
+func upOnce(352,4944
+func upTo(365,5171
+func levelUp(372,5259
+func Add(384,5468
+func Minu(400,5760
+func Times(416,6057
+func Div(432,6359
+func Int(460,6859
+func Abs(473,7070
+func oneOf(488,7293
+func Power(503,7541
+func IsZero(515,7695

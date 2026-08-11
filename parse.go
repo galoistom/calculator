@@ -2,28 +2,6 @@ package main
 
 import "fmt"
 
-type Lexer struct {
-	input    string
-	position int
-}
-
-type TokenType int
-
-const (
-	LPAREN TokenType = iota
-	RPAREN
-	NUMBER
-	IDENT
-	QUOTE
-	STRING
-	EOF
-)
-
-type Token struct {
-	Type  TokenType
-	Value string
-}
-
 func (l *Lexer) getNumber() Token {
 	res := Token{
 		Type: NUMBER,
@@ -157,11 +135,6 @@ func (l *Lexer) GetToken() []Token {
 		res = append(res, l.nextToken())
 	}
 	return res
-}
-
-type Parser struct {
-	tokens   []Token
-	position int
 }
 
 func (p *Parser) Parse() (Expr, error) {

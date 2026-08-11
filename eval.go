@@ -9,16 +9,6 @@ import (
 	"strings"
 )
 
-type Expr interface {
-	exprNode()
-	Print() string
-}
-
-type Environment struct {
-	env []frame
-}
-type frame map[string]Expr
-
 func make_frame(vars []Expr, vals []Expr) (frame, error) {
 	res := make(frame)
 	for i := range vars {
@@ -45,14 +35,6 @@ func (env Environment) extend_environment(vars []Expr, vals []Expr) (Environment
 func (env *Environment) exprNode() {}
 func (env *Environment) Print() string {
 	return fmt.Sprint(*env)
-}
-
-type stringNumber struct {
-	Value string
-}
-
-type Number struct {
-	value Value
 }
 
 func (Number) exprNode() {}
@@ -92,17 +74,9 @@ func (x stringNumber) getValue() (Number, error) {
 	return Number{value: Integer(i)}, nil
 }
 
-type Symbol struct {
-	content string
-}
-
 func (Symbol) exprNode() {}
 func (s Symbol) Print() string {
 	return fmt.Sprintf("'%s", s.content)
-}
-
-type List struct {
-	args []Expr
 }
 
 func (List) exprNode() {}
@@ -114,11 +88,6 @@ func (l List) Print() string {
 	}
 	b.WriteString(")")
 	return b.String()
-}
-
-type Action struct {
-	name string
-	f    func([]Expr) (Expr, error)
 }
 
 func (Action) exprNode() {}
@@ -135,7 +104,7 @@ func InitEnvironment() (*Environment, error) {
 	vars := []Expr{}
 	var inputScanner = bufio.NewScanner(os.Stdin)
 
-var primitiveAction = map[string]Action{
+	var primitiveAction = map[string]Action{
 		"car": {name: "car",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
@@ -157,6 +126,17 @@ var primitiveAction = map[string]Action{
 				}
 				return nil, nil
 			}},
+		"load": {name: "load",
+			f: func(args []Expr) (Expr, error) {
+				if len(args)==1{
+					file:=args[0].(String).content
+					code, err:= ReadFile(file)
+					if err!=nil{return nil,err}
+					fmt.Printf("file %s loaded successfully", file)
+					return Process(code)
+				}
+				return nil, fmt.Errorf("wrong number of arguments of load, need 1, get %d", len(args))
+			}},
 		"eq?": {name: "eq?",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
@@ -165,7 +145,7 @@ var primitiveAction = map[string]Action{
 					}
 					return Symbol{content: "false"}, nil
 				}
-				return nil, fmt.Errorf("wrong number of arguments of eq?, need 1, get %d", len(args))
+				return nil, fmt.Errorf("wrong number of arguments of eq?, need 2, get %d", len(args))
 			}},
 		"list": {name: "list",
 			f: func(args []Expr) (Expr, error) {
@@ -669,12 +649,83 @@ func actualValue(exp Expr, env *Environment) (Expr, error) {
 	return res, nil
 }
 
+func evalMap(args []Expr, env *Environment) (Expr,error){
+	proc, err:= Eval(args[0],env)
+	if err!=nil{return nil,err}
+	xs,err:=Eval(args[1],env)
+	if err!=nil{return nil,err}
+	l := xs.(List).args
+	res := make([]Expr, len(l))
+	for i,k := range l{
+		r, err:= apply(proc, []Expr{k}, env)
+		if err!=nil{return nil,err}
+		res[i] = r
+	}
+	return List{args:res},nil
+}
+
+func evalFilter(args []Expr, env *Environment) (Expr, error){
+	proc, err:= Eval(args[0],env)
+	if err!=nil{return nil,err}
+	xs,err:=Eval(args[1],env)
+	if err!=nil{return nil,err}
+	l := xs.(List).args
+	res := []Expr{}
+	for _,k := range l{
+		r, err:= apply(proc, []Expr{k}, env)
+		if err!=nil{return nil,err}
+		b,err:=evalTrue(r)
+		if err!=nil{return nil,err}
+		if b{res= append(res,k)}
+	}
+	return List{args:res},nil
+}
+
+func evalListRef(args []Expr, env *Environment) (Expr, error){
+	if len(args)!=2{
+		return nil, errors.New("wrong number of arguments to call list-ref")
+	}
+	list := args[0].(List)
+	num, err:= Eval(args[1],env)
+	if err!=nil{return nil,err}
+	index,err := Int(num.(Number).value)
+	if err!=nil{return nil,err}
+	return list.args[int(index)],nil
+}
+
+func evalListSet(args []Expr, env *Environment) (Expr, error){
+	if len(args)!=3{
+		return nil, errors.New("wrong number of arguments to call list-set")
+	}
+	list := args[0].(List)
+	num, err:= Eval(args[1],env)
+	if err!=nil{return nil,err}
+	index,err := Int(num.(Number).value)
+	if err!=nil{return nil,err}
+	res ,err:= Eval(args[2], env)
+	if err!=nil{return nil,err}
+	list.args[int(index)]= res
+	return list,nil
+}
+
+func evalListTail(args []Expr, env *Environment) (Expr, error){
+	if len(args)!=2{
+		return nil, errors.New("wrong number of arguments to call list-tail")
+	}
+	list := args[0].(List)
+	num, err:= Eval(args[1],env)
+	if err!=nil{return nil,err}
+	index,err := Int(num.(Number).value)
+	if err!=nil{return nil,err}
+	return List{args:list.args[index:]},nil
+}
+
 func Eval(exp Expr, env *Environment) (Expr, error) {
 	if exp == nil {
 		return nil, nil
 	}
 	switch x := exp.(type) {
-	case Number,String:
+	case Number, String:
 		return x, nil
 	case Symbol:
 		return lookUpVariable(x, *env)
@@ -700,6 +751,16 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 				return makeProcedure(x.args[1], x.args[2:], env)
 			case "begin":
 				return EvalSequence(x.args[1:], env)
+			case "map":
+				return evalMap(x.args[1:],env)
+			case "filter":
+				return evalFilter(x.args[1:],env)
+			case "list-ref":
+				return evalListRef(x.args[1:], env)
+			case "list-set!":
+				return evalListSet(x.args[1:], env)
+			case "list-tail":
+				return evalListTail(x.args[1:], env)
 			case "cond":
 				return evalCond(x.args[1:], env)
 			default:

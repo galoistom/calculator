@@ -7,6 +7,71 @@ import (
 	"strconv"
 )
 
+// Core expression types
+type Expr interface {
+	exprNode()
+	Print() string
+}
+
+type Environment struct {
+	env []frame
+}
+
+type frame map[string]Expr
+
+type stringNumber struct {
+	Value string
+}
+
+type Number struct {
+	value Value
+}
+
+type Symbol struct {
+	content string
+}
+
+type List struct {
+	args []Expr
+}
+
+type Action struct {
+	name string
+	f    func([]Expr) (Expr, error)
+}
+
+type String struct {
+	content string
+}
+
+// Lexer and Parser types
+type TokenType int
+
+const (
+	LPAREN TokenType = iota
+	RPAREN
+	NUMBER
+	IDENT
+	QUOTE
+	STRING
+	EOF
+)
+
+type Token struct {
+	Type  TokenType
+	Value string
+}
+
+type Lexer struct {
+	input    string
+	position int
+}
+
+type Parser struct {
+	tokens   []Token
+	position int
+}
+
 type Type int
 
 const (
@@ -259,12 +324,8 @@ func (x Complex) Print() string {
 	return fmt.Sprintf("%f+%fi", x.a, x.b)
 }
 
-// String literal
-type String struct {
-	content string
-}
-
 func (String) exprNode() {}
+
 func (s String) Print() string {
 	return fmt.Sprintf("%s", s.content)
 }
