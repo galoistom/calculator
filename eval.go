@@ -133,7 +133,9 @@ func InitEnvironment() (*Environment, error) {
 		"false": Symbol{content: "false"}}}}
 	vals := []Expr{}
 	vars := []Expr{}
-	var primitiveAction = map[string]Action{
+	var inputScanner = bufio.NewScanner(os.Stdin)
+
+var primitiveAction = map[string]Action{
 		"car": {name: "car",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
@@ -172,13 +174,12 @@ func InitEnvironment() (*Environment, error) {
 		"readline": {name: "readline",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 0 {
-					scanner := bufio.NewScanner(os.Stdin)
 					fmt.Print("input:")
-					if scanner.Scan() {
-						line := scanner.Text()
+					if inputScanner.Scan() {
+						line := inputScanner.Text()
 						return Process(line)
 					}
-					if err := scanner.Err(); err != nil {
+					if err := inputScanner.Err(); err != nil {
 						fmt.Println("failed to read", err)
 					}
 				}
@@ -369,7 +370,7 @@ func sequenceToExp(exp []Expr) Expr {
 	}
 }
 
-func splitVarVal(exp []Expr, env *Environment) ([]Expr, []Expr, error) {
+func splitVarVal(exp []Expr) ([]Expr, []Expr, error) {
 	variables := []Expr{}
 	values := []Expr{}
 	for _, i := range exp {
@@ -378,11 +379,7 @@ func splitVarVal(exp []Expr, env *Environment) ([]Expr, []Expr, error) {
 			if len(j.args) != 2 {
 				return nil, nil, errors.New("Wrong numbers of arguments in let")
 			}
-			res, err := Eval(j.args[1], env)
-			if err != nil {
-				return nil, nil, err
-			}
-			values = append(values, res)
+			values = append(values, j.args[1])
 			switch k := j.args[0].(type) {
 			case Symbol:
 				variables = append(variables, k)
@@ -404,7 +401,7 @@ func evalLet(exp []Expr, env *Environment) (Expr, error) {
 		ass := exp[1]
 		switch assignments := ass.(type) {
 		case List:
-			values, variables, err := splitVarVal(assignments.args, env)
+			values, variables, err := splitVarVal(assignments.args)
 			if err != nil {
 				return nil, err
 			}
@@ -416,7 +413,7 @@ func evalLet(exp []Expr, env *Environment) (Expr, error) {
 		}
 		return nil, errors.New("syntax error in let")
 	case List:
-		variables, values, err := splitVarVal(x.args, env)
+		variables, values, err := splitVarVal(x.args)
 		if err != nil {
 			return nil, err
 		}

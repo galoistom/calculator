@@ -18,6 +18,10 @@ func Process(code string) (Expr, error) {
 	if err != nil {
 		return nil, err
 	}
+	if res != nil {
+		fmt.Println(res.Print())
+	}
+
 	return res, nil
 }
 

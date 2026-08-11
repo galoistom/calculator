@@ -262,6 +262,12 @@ func TestLazyArguments(t *testing.T) {
 	mustError(t, "((lambda (x) (+ x 1)) (/ 1 0))", "divisor is 0")
 }
 
+func TestLetBindingsAreValuesNotReevaluated(t *testing.T) {
+	mustEval(t, "(let ((x (quote exit))) (eq? x (quote exit)))", "'true")
+	mustEval(t, "(let ((x (quote (1 2)))) (car x))", "1")
+	mustEval(t, "(let ((a 3) (b 4)) (+ a b))", "7")
+}
+
 func evalWithCounter(t *testing.T, code string, count *int) (string, error) {
 	t.Helper()
 	exps := parseSequence(t, code)

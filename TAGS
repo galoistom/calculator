@@ -1,69 +1,103 @@
 
-eval.go,1002
+eval.go,1370
 package main1,0
-type Expr 10,65
-type Environment 14,102
-type frame 17,143
-func make_frame(19,171
-func (env Environment) extend_environment(31,438
-func (env *Environment) exprNode(42,798
-type stringNumber 44,837
-type Number 48,881
-func (Number) exprNode(52,918
-func (x stringNumber) getValue(54,947
-type Symbol 86,1738
-func (Symbol) exprNode(90,1778
-type List 92,1807
-func (List) exprNode(96,1842
-func InitEnvironment(203,4830
-func lookUpVariable(218,5221
-func evalAssignment(228,5465
-func definitionVariable(246,5869
-func makeLambda(262,6228
-func definitionValue(266,6367
-func evalDefinition(276,6537
-func sequenceToExp(286,6759
-func splitVarVal(297,6949
-func evalLet(323,7561
-func evalTrue(360,8670
-func evalIf(372,8929
-func evalOr(391,9318
-func evalAnd(411,9701
-func makeProcedure(431,10087
-func evalSequence(439,10356
-func evalCond(454,10652
-func condToIf(462,10805
-func primitiveApply(504,11913
-func apply(515,12210
-func evalApply(537,12817
-func Eval(553,13159
+type Expr 12,80
+type Environment 17,133
+type frame 20,174
+func make_frame(22,202
+func (env Environment) extend_environment(34,469
+func (env *Environment) exprNode(45,829
+func (env *Environment) Print(46,867
+type stringNumber 50,936
+type Number 54,980
+func (Number) exprNode(58,1017
+func (n Number) Print(59,1045
+func (x stringNumber) getValue(63,1105
+type Symbol 95,1896
+func (Symbol) exprNode(99,1936
+func (s Symbol) Print(100,1964
+type List 104,2038
+func (List) exprNode(108,2073
+func (l List) Print(109,2099
+type Action 119,2288
+func (Action) exprNode(124,2358
+func (f Action) Print(126,2387
+func InitEnvironment(130,2438
+func lookUpVariable(293,7176
+func evalAssignment(303,7420
+func definitionVariable(321,7824
+func makeLambda(337,8183
+func definitionValue(341,8322
+func evalDefinition(351,8492
+func sequenceToExp(361,8714
+func splitVarVal(372,8904
+func evalLet(398,9516
+func evalTrue(435,10625
+func evalIf(447,10884
+func evalOr(466,11273
+func evalAnd(486,11656
+func makeProcedure(506,12042
+func EvalSequence(515,12315
+func evalCond(530,12611
+func condToIf(538,12764
+func primitiveApply(580,13872
+func apply(587,14060
+func evalApply(615,14832
+func delayIt(623,15013
+func listOfDelayedArgs(627,15138
+func listOfArgValues(635,15304
+func forceIt(647,15547
+func actualValue(664,15951
+func Eval(675,16152
 
-main.go,33
+main.go,55
 package main1,0
-func main(8,39
+func Process(10,69
+func main(24,355
 
-parse.go,417
+parse.go,456
 package main1,0
-type Lexer 8,47
-type TokenType 13,101
-type Token 24,192
-func (l *Lexer) getNumber(29,246
-func (l *Lexer) getOp(46,519
-func isQuote(62,740
-func isOperator(65,790
-func isSymbol(73,895
-func isLetter(77,997
-func isDigit(85,1174
-func (l *Lexer) skipWhitespace(89,1237
-func (l *Lexer) nextToken(101,1453
-func (l *Lexer) GetToken(129,2022
-type Parser 138,2194
-func (p *Parser) Parse(143,2250
+type Lexer 5,28
+type TokenType 10,82
+type Token 21,173
+func (l *Lexer) getNumber(26,227
+func (l *Lexer) getOp(43,500
+func isQuote(59,742
+func isOperator(62,792
+func isSymbol(70,897
+func isLetter(74,999
+func isDigit(82,1176
+func (l *Lexer) skipWhitespace(86,1239
+func (l *Lexer) nextToken(98,1455
+func (l *Lexer) GetToken(126,2024
+type Parser 135,2196
+func (p *Parser) Parse(140,2252
+func (p *Parser) ParseSequence(189,3258
 
-parser_test.go,60
+parser_test.go,703
 package main1,0
-func TestParse(7,37
-func TestEval(19,270
+func parseExpr(8,48
+func parseSequence(19,285
+func TestParseNumber(30,544
+func TestParseNumberTypes(50,963
+func TestParseSymbol(72,1550
+func TestParseList(80,1729
+func TestParseQuote(97,2198
+func TestParseSequence(112,2645
+func TestParseErrors(119,2802
+func evalCode(140,3317
+func mustEval(157,3655
+func mustError(168,3900
+func TestEvalArithmetic(179,4220
+func TestEvalListAndQuote(203,4710
+func TestEvalConditionals(209,4899
+func TestEvalLambda(219,5231
+func TestEvalIdentityReturnsThunk(226,5452
+func TestEvalDefineAndRecursion(245,5994
+func TestEvalErrors(252,6312
+func TestLazyArguments(260,6630
+func evalWithCounter(265,6782
+func TestLazyMemoization(296,7494
 
 types.go,1544
 package main1,0
