@@ -1,8 +1,4 @@
 (display "type 'exit to exit")
-(define (fold func init l)
-  (if (null? l)
-      init
-      (fold func (func init (car l)) (cdr l))))
 (define (foldr func init l)
   (if (null? l)
       init

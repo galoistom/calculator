@@ -162,6 +162,54 @@ func InitEnvironment() (*Environment, error) {
 			f: func(args []Expr) (Expr, error) {
 				return List{args: args}, nil
 			}},
+		"list-len": {name: "list-len",
+			f: func(args []Expr) (Expr, error) {
+				if list, ok := args[0].(List); ok {
+					return Number{value: Integer(len(list.args))}, nil
+				}
+				return nil, errors.New("list-len only accept list")
+			}},
+		"list-tail": {name: "list-tail",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					list := args[0].(List)
+					num := args[1]
+					index, err := Int(num.(Number).value)
+					if err != nil {
+						return nil, err
+					}
+					return List{args: list.args[index:]}, nil
+				}
+				return nil, errors.New("wrong number of arguments to call list-tail")
+			}},
+		"list-set!": {name: "list-set!",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 3 {
+					list := args[0].(List)
+					num := args[1]
+					index, err := Int(num.(Number).value)
+					if err != nil {
+						return nil, err
+					}
+					res := args[2]
+					list.args[int(index)] = res
+					return list, nil
+				}
+				return nil, errors.New("wrong number of arguments to call list-set")
+			}},
+		"list-ref": {name: "list-ref",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					list := args[0].(List)
+					num := args[1]
+					index, err := Int(num.(Number).value)
+					if err != nil {
+						return nil, err
+					}
+					return list.args[int(index)], nil
+				}
+				return nil, errors.New("wrong number of arguments to call list-ref")
+			}},
 		"null?": {name: "null?",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
@@ -323,7 +371,7 @@ func InitEnvironment() (*Environment, error) {
 	return &new_env, nil
 }
 
-func lookUpVariable(exp Symbol, env Environment) (Expr, error) {
+func lookUpVariable(exp Symbol, env *Environment) (Expr, error) {
 	for _, frame := range env.env {
 		res, ok := frame[exp.content]
 		if ok {
@@ -714,10 +762,7 @@ func actualValue(exp Expr, env *Environment) (Expr, error) {
 }
 
 func evalMap(args []Expr, env *Environment) (Expr, error) {
-	proc, err := Eval(args[0], env)
-	if err != nil {
-		return nil, err
-	}
+	proc := args[0]
 	xs, err := Eval(args[1], env)
 	if err != nil {
 		return nil, err
@@ -735,10 +780,7 @@ func evalMap(args []Expr, env *Environment) (Expr, error) {
 }
 
 func evalFilter(args []Expr, env *Environment) (Expr, error) {
-	proc, err := Eval(args[0], env)
-	if err != nil {
-		return nil, err
-	}
+	proc := args[0]
 	xs, err := Eval(args[1], env)
 	if err != nil {
 		return nil, err
@@ -761,57 +803,27 @@ func evalFilter(args []Expr, env *Environment) (Expr, error) {
 	return List{args: res}, nil
 }
 
-func evalListRef(args []Expr, env *Environment) (Expr, error) {
-	if len(args) != 2 {
-		return nil, errors.New("wrong number of arguments to call list-ref")
-	}
-	list := args[0].(List)
-	num, err := Eval(args[1], env)
-	if err != nil {
-		return nil, err
-	}
-	index, err := Int(num.(Number).value)
-	if err != nil {
-		return nil, err
-	}
-	return list.args[int(index)], nil
-}
-
-func evalListSet(args []Expr, env *Environment) (Expr, error) {
+func evalFold(args []Expr, env *Environment) (Expr, error) {
 	if len(args) != 3 {
-		return nil, errors.New("wrong number of arguments to call list-set")
+		return nil, errors.New("wrong number of arguments, need 3")
 	}
-	list := args[0].(List)
-	num, err := Eval(args[1], env)
+	proc := args[0]
+	init, err := Eval(args[1], env)
 	if err != nil {
 		return nil, err
 	}
-	index, err := Int(num.(Number).value)
-	if err != nil {
-		return nil, err
+	plist, err := Eval(args[2], env)
+	if list, ok := plist.(List); ok {
+		for _, k := range list.args {
+			action := List{args: []Expr{proc, init, k}}
+			init, err = Eval(action, env)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return init, nil
 	}
-	res, err := Eval(args[2], env)
-	if err != nil {
-		return nil, err
-	}
-	list.args[int(index)] = res
-	return list, nil
-}
-
-func evalListTail(args []Expr, env *Environment) (Expr, error) {
-	if len(args) != 2 {
-		return nil, errors.New("wrong number of arguments to call list-tail")
-	}
-	list := args[0].(List)
-	num, err := Eval(args[1], env)
-	if err != nil {
-		return nil, err
-	}
-	index, err := Int(num.(Number).value)
-	if err != nil {
-		return nil, err
-	}
-	return List{args: list.args[index:]}, nil
+	return nil, errors.New("fold can only process list")
 }
 
 func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
@@ -897,7 +909,7 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 	case Number, String:
 		return x, nil
 	case Symbol:
-		return lookUpVariable(x, *env)
+		return lookUpVariable(x, env)
 	case List:
 		switch y := x.args[0].(type) {
 		case Symbol:
@@ -935,12 +947,8 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 				return evalMap(x.args[1:], env)
 			case "filter":
 				return evalFilter(x.args[1:], env)
-			case "list-ref":
-				return evalListRef(x.args[1:], env)
-			case "list-set!":
-				return evalListSet(x.args[1:], env)
-			case "list-tail":
-				return evalListTail(x.args[1:], env)
+			case "fold":
+				return evalFold(x.args[1:], env)
 			case "cond":
 				return evalCond(x.args[1:], env)
 			case "eval":
