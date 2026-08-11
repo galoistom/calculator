@@ -40,8 +40,20 @@ type Action struct {
 	f    func([]Expr) (Expr, error)
 }
 
+type Macro struct {
+	name   string
+	para   []Expr
+	body   []Expr
+	defEnv *Environment
+}
+
 type String struct {
 	content string
+}
+
+// splice marks an unquote-splicing result inside a quasiquote
+type splice struct {
+	args []Expr
 }
 
 // Lexer and Parser types
@@ -54,6 +66,9 @@ const (
 	IDENT
 	QUOTE
 	STRING
+	QUASIQUOTE
+	UNQUOTE
+	SPLICE
 	EOF
 )
 

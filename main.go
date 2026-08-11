@@ -35,15 +35,11 @@ func ReadFile(path string) (string, error){
 }
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("usage: calculator <filename>")
-		return
-	}
 	input := ""
 	var err error
 	switch os.Args[1] {
 	case "--help", "-h":
-		fmt.Println("usage: calculator <filename>")
+		fmt.Println("usage: calculator [option] <code>\n      -f/--file to read code from file\n      -e/--eval to read from arguments")
 		return
 	case "--file", "-f":
 		filepath := os.Args[2]

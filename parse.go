@@ -116,6 +116,16 @@ func (l *Lexer) nextToken() Token {
 		return Token{Type: QUOTE, Value: "'"}
 	case '"':
 		return l.getString()
+	case '`':
+		l.position++
+		return Token{Type: QUASIQUOTE, Value: "`"}
+	case ',':
+		l.position++
+		if l.position < len(l.input) && l.input[l.position] == '@' {
+			l.position++
+			return Token{Type: SPLICE, Value: ",@"}
+		}
+		return Token{Type: UNQUOTE, Value: ","}
 	}
 	if isOperator(ch) {
 		l.position++
@@ -159,6 +169,27 @@ func (p *Parser) Parse() (Expr, error) {
 			return nil, err
 		}
 		return List{args: []Expr{Symbol{content: "quote"}, content}}, nil
+	case QUASIQUOTE:
+		p.position++
+		content, err := p.Parse()
+		if err != nil {
+			return nil, err
+		}
+		return List{args: []Expr{Symbol{content: "quasiquote"}, content}}, nil
+	case UNQUOTE:
+		p.position++
+		content, err := p.Parse()
+		if err != nil {
+			return nil, err
+		}
+		return List{args: []Expr{Symbol{content: "unquote"}, content}}, nil
+	case SPLICE:
+		p.position++
+		content, err := p.Parse()
+		if err != nil {
+			return nil, err
+		}
+		return List{args: []Expr{Symbol{content: "unquote-splicing"}, content}}, nil
 	case STRING:
 		p.position++
 		return String{content: x.Value}, nil

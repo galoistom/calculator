@@ -91,9 +91,18 @@ func (l List) Print() string {
 }
 
 func (Action) exprNode() {}
-
 func (f Action) Print() string {
 	return f.name
+}
+
+func (splice) exprNode() {}
+func (s splice) Print() string {
+	return "(splice)"
+}
+
+func (Macro) exprNode() {}
+func (m Macro) Print() string {
+	return fmt.Sprintf("(Macro %s)", m.name)
 }
 
 func InitEnvironment() (*Environment, error) {
@@ -128,11 +137,13 @@ func InitEnvironment() (*Environment, error) {
 			}},
 		"load": {name: "load",
 			f: func(args []Expr) (Expr, error) {
-				if len(args)==1{
-					file:=args[0].(String).content
-					code, err:= ReadFile(file)
-					if err!=nil{return nil,err}
-					fmt.Printf("file %s loaded successfully", file)
+				if len(args) == 1 {
+					file := args[0].(String).content
+					code, err := ReadFile(file)
+					if err != nil {
+						return nil, err
+					}
+					fmt.Printf("file %s loaded successfully\n", file)
 					return Process(code)
 				}
 				return nil, fmt.Errorf("wrong number of arguments of load, need 1, get %d", len(args))
@@ -281,22 +292,26 @@ func lookUpVariable(exp Symbol, env Environment) (Expr, error) {
 	return nil, fmt.Errorf("unable to find variable %s's value", exp.content)
 }
 
-func evalAssignment(vari Symbol, exp []Expr, env *Environment) error {
+func evalAssignment(exp []Expr, env *Environment) error {
 	if len(exp) != 2 {
 		return errors.New("in correct numbers of argumens for set!")
 	}
+	target, ok := exp[0].(Symbol)
+	if !ok {
+		return errors.New("set! requires a variable")
+	}
 	for _, j := range (*env).env {
-		_, a := j[vari.content]
+		_, a := j[target.content]
 		if a {
 			res, err := Eval(exp[1], env)
 			if err != nil {
 				return err
 			}
-			j[vari.content] = res
+			j[target.content] = res
 			return nil
 		}
 	}
-	return fmt.Errorf("unbounded variable: %s", vari.content)
+	return fmt.Errorf("unbounded variable: %s", target.content)
 }
 
 func definitionVariable(exp []Expr) (Symbol, error) {
@@ -582,6 +597,14 @@ func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
 					}
 					return EvalSequence(procedure_body, &new_env)
 				}
+			case "macro":
+				macro := pro.args[1].(Macro)
+				newEnv, err := macro.defEnv.extend_environment(macro.para, args)
+				if err != nil {
+					return nil, err
+				}
+				expansion, err := EvalSequence(macro.body, &newEnv)
+				return Eval(expansion, env)
 			}
 		}
 	}
@@ -649,75 +672,180 @@ func actualValue(exp Expr, env *Environment) (Expr, error) {
 	return res, nil
 }
 
-func evalMap(args []Expr, env *Environment) (Expr,error){
-	proc, err:= Eval(args[0],env)
-	if err!=nil{return nil,err}
-	xs,err:=Eval(args[1],env)
-	if err!=nil{return nil,err}
+func evalMap(args []Expr, env *Environment) (Expr, error) {
+	proc, err := Eval(args[0], env)
+	if err != nil {
+		return nil, err
+	}
+	xs, err := Eval(args[1], env)
+	if err != nil {
+		return nil, err
+	}
 	l := xs.(List).args
 	res := make([]Expr, len(l))
-	for i,k := range l{
-		r, err:= apply(proc, []Expr{k}, env)
-		if err!=nil{return nil,err}
+	for i, k := range l {
+		r, err := apply(proc, []Expr{k}, env)
+		if err != nil {
+			return nil, err
+		}
 		res[i] = r
 	}
-	return List{args:res},nil
+	return List{args: res}, nil
 }
 
-func evalFilter(args []Expr, env *Environment) (Expr, error){
-	proc, err:= Eval(args[0],env)
-	if err!=nil{return nil,err}
-	xs,err:=Eval(args[1],env)
-	if err!=nil{return nil,err}
+func evalFilter(args []Expr, env *Environment) (Expr, error) {
+	proc, err := Eval(args[0], env)
+	if err != nil {
+		return nil, err
+	}
+	xs, err := Eval(args[1], env)
+	if err != nil {
+		return nil, err
+	}
 	l := xs.(List).args
 	res := []Expr{}
-	for _,k := range l{
-		r, err:= apply(proc, []Expr{k}, env)
-		if err!=nil{return nil,err}
-		b,err:=evalTrue(r)
-		if err!=nil{return nil,err}
-		if b{res= append(res,k)}
+	for _, k := range l {
+		r, err := apply(proc, []Expr{k}, env)
+		if err != nil {
+			return nil, err
+		}
+		b, err := evalTrue(r)
+		if err != nil {
+			return nil, err
+		}
+		if b {
+			res = append(res, k)
+		}
 	}
-	return List{args:res},nil
+	return List{args: res}, nil
 }
 
-func evalListRef(args []Expr, env *Environment) (Expr, error){
-	if len(args)!=2{
+func evalListRef(args []Expr, env *Environment) (Expr, error) {
+	if len(args) != 2 {
 		return nil, errors.New("wrong number of arguments to call list-ref")
 	}
 	list := args[0].(List)
-	num, err:= Eval(args[1],env)
-	if err!=nil{return nil,err}
-	index,err := Int(num.(Number).value)
-	if err!=nil{return nil,err}
-	return list.args[int(index)],nil
+	num, err := Eval(args[1], env)
+	if err != nil {
+		return nil, err
+	}
+	index, err := Int(num.(Number).value)
+	if err != nil {
+		return nil, err
+	}
+	return list.args[int(index)], nil
 }
 
-func evalListSet(args []Expr, env *Environment) (Expr, error){
-	if len(args)!=3{
+func evalListSet(args []Expr, env *Environment) (Expr, error) {
+	if len(args) != 3 {
 		return nil, errors.New("wrong number of arguments to call list-set")
 	}
 	list := args[0].(List)
-	num, err:= Eval(args[1],env)
-	if err!=nil{return nil,err}
-	index,err := Int(num.(Number).value)
-	if err!=nil{return nil,err}
-	res ,err:= Eval(args[2], env)
-	if err!=nil{return nil,err}
-	list.args[int(index)]= res
-	return list,nil
+	num, err := Eval(args[1], env)
+	if err != nil {
+		return nil, err
+	}
+	index, err := Int(num.(Number).value)
+	if err != nil {
+		return nil, err
+	}
+	res, err := Eval(args[2], env)
+	if err != nil {
+		return nil, err
+	}
+	list.args[int(index)] = res
+	return list, nil
 }
 
-func evalListTail(args []Expr, env *Environment) (Expr, error){
-	if len(args)!=2{
+func evalListTail(args []Expr, env *Environment) (Expr, error) {
+	if len(args) != 2 {
 		return nil, errors.New("wrong number of arguments to call list-tail")
 	}
 	list := args[0].(List)
-	num, err:= Eval(args[1],env)
-	if err!=nil{return nil,err}
-	index,err := Int(num.(Number).value)
-	if err!=nil{return nil,err}
-	return List{args:list.args[index:]},nil
+	num, err := Eval(args[1], env)
+	if err != nil {
+		return nil, err
+	}
+	index, err := Int(num.(Number).value)
+	if err != nil {
+		return nil, err
+	}
+	return List{args: list.args[index:]}, nil
+}
+
+func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
+	switch t := e.(type) {
+	case List:
+		if sym, ok := t.args[0].(Symbol); ok {
+			switch sym.content {
+			case "quasiquote":
+				if len(t.args) < 2 {
+					return nil, errors.New("quasiquote requires an argument")
+				}
+				inner, err := evalQuasi(t.args[1], depth+1, env)
+				if err != nil {
+					return nil, err
+				}
+				return List{args: []Expr{Symbol{content: "quasiquote"}, inner}}, nil
+			case "unquote":
+				if len(t.args) < 2 {
+					return nil, errors.New("unquote requires an argument")
+				}
+				if depth == 1 {
+					return actualValue(t.args[1], env)
+				}
+				inner, err := evalQuasi(t.args[1], depth-1, env)
+				if err != nil {
+					return nil, err
+				}
+				return List{args: []Expr{Symbol{content: "unquote"}, inner}}, nil
+			case "unquote-splicing":
+				if len(t.args) < 2 {
+					return nil, errors.New("unquote-splicing requires an argument")
+				}
+				if depth == 1 {
+					val, err := actualValue(t.args[1], env)
+					if err != nil {
+						return nil, err
+					}
+					lv, ok := val.(List)
+					if !ok {
+						return nil, fmt.Errorf("unquote-splicing requires a list, got %s", val.Print())
+					}
+					return &splice{args: lv.args}, nil
+				}
+				inner, err := evalQuasi(t.args[1], depth-1, env)
+				if err != nil {
+					return nil, err
+				}
+				return List{args: []Expr{Symbol{content: "unquote-splicing"}, inner}}, nil
+			}
+		}
+		out := []Expr{}
+		for _, el := range t.args {
+			r, err := evalQuasi(el, depth, env)
+			if err != nil {
+				return nil, err
+			}
+			if s, ok := r.(*splice); ok {
+				out = append(out, s.args...)
+			} else {
+				out = append(out, r)
+			}
+		}
+		return List{args: out}, nil
+	default:
+		return e, nil
+	}
+}
+
+func evalDefMacro(args []Expr, env *Environment) (Expr, error) {
+	macro_Name := args[0].(Symbol)
+	para := args[1].(List)
+	body := args[2:]
+	macro := Macro{name: macro_Name.content, para: para.args, body: body, defEnv: env}
+	(*env).env[0][macro_Name.content] = List{args: []Expr{Symbol{content: "macro"}, macro}}
+	return macro, nil
 }
 
 func Eval(exp Expr, env *Environment) (Expr, error) {
@@ -735,8 +863,17 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 			switch y.content {
 			case "quote":
 				return x.args[1], nil
+			case "quasiquote":
+				res, err := evalQuasi(x.args[1], 1, env)
+				if err != nil {
+					return nil, err
+				}
+				if _, ok := res.(*splice); ok {
+					return nil, errors.New("unquote-splicing is not allowed at top level of a quasiquote")
+				}
+				return res, nil
 			case "set!":
-				return Symbol{content: "ok"}, evalAssignment(y, x.args[1:], env)
+				return Symbol{content: "ok"}, evalAssignment(x.args[1:], env)
 			case "define":
 				return Symbol{content: "ok"}, evalDefinition(x.args[1:], env)
 			case "let":
@@ -751,10 +888,12 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 				return makeProcedure(x.args[1], x.args[2:], env)
 			case "begin":
 				return EvalSequence(x.args[1:], env)
+			case "defmacro":
+				return evalDefMacro(x.args[1:], env)
 			case "map":
-				return evalMap(x.args[1:],env)
+				return evalMap(x.args[1:], env)
 			case "filter":
-				return evalFilter(x.args[1:],env)
+				return evalFilter(x.args[1:], env)
 			case "list-ref":
 				return evalListRef(x.args[1:], env)
 			case "list-set!":

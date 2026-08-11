@@ -269,6 +269,63 @@ func TestEvalLambda(t *testing.T) {
 	mustEval(t, "(let ((a 3) (b 4)) (+ a b))", "7")
 }
 
+func TestParseQuasiquote(t *testing.T) {
+	got := parseExpr(t, "`(a ,b ,@c)")
+	lst, ok := got.(List)
+	if !ok || len(lst.args) != 2 {
+		t.Fatalf("Parse(`(a ,b ,@c)) = %v, want a 2-element List", got)
+	}
+	if s, ok := lst.args[0].(Symbol); !ok || s.content != "quasiquote" {
+		t.Errorf("head = %v, want Symbol(quasiquote)", lst.args[0])
+	}
+	tpl := lst.args[1].(List)
+	if len(tpl.args) != 3 {
+		t.Fatalf("template has %d elements, want 3", len(tpl.args))
+	}
+	if s, ok := tpl.args[0].(Symbol); !ok || s.content != "a" {
+		t.Errorf("tpl[0] = %v, want Symbol(a)", tpl.args[0])
+	}
+	un := tpl.args[1].(List)
+	if s, ok := un.args[0].(Symbol); !ok || s.content != "unquote" {
+		t.Errorf("tpl[1] head = %v, want Symbol(unquote)", un.args[0])
+	}
+	if s, ok := un.args[1].(Symbol); !ok || s.content != "b" {
+		t.Errorf("tpl[1] body = %v, want Symbol(b)", un.args[1])
+	}
+	sp := tpl.args[2].(List)
+	if s, ok := sp.args[0].(Symbol); !ok || s.content != "unquote-splicing" {
+		t.Errorf("tpl[2] head = %v, want Symbol(unquote-splicing)", sp.args[0])
+	}
+	if s, ok := sp.args[1].(Symbol); !ok || s.content != "c" {
+		t.Errorf("tpl[2] body = %v, want Symbol(c)", sp.args[1])
+	}
+}
+
+func TestEvalQuasiquote(t *testing.T) {
+	mustEval(t, "`(a b c)", "(listof 'a 'b 'c)")
+	mustEval(t, "`(1 ,(+ 1 1) 3)", "(listof 1 2 3)")
+	mustEval(t, "(define b 5) `(a ,b)", "(listof 'a 5)")
+	mustEval(t, "`(1 ,@(list 2 3) 4)", "(listof 1 2 3 4)")
+	mustEval(t, "`a", "'a")
+	mustEval(t, "`(1 `(2 ,(+ 1 1)))", "(listof 1 (listof 'quasiquote (listof 2 (listof 'unquote (listof '+ 1 1)))))")
+	mustError(t, "`,@(list 1 2)", "unquote-splicing is not allowed at top level")
+	mustError(t, "`(1 ,@5)", "unquote-splicing requires a list")
+}
+
+func TestEvalDefMacro(t *testing.T) {
+	mustEval(t, "(defmacro unless (c then) `(if ,c 0 ,then)) (unless (= 1 1) 99)", "0")
+	mustEval(t, "(defmacro unless (c then) `(if ,c 0 ,then)) (unless (= 1 2) 99)", "99")
+	mustEval(t, "(defmacro m (x) `(+ ,x 1)) (m 41)", "42")
+	mustEval(t, "(defmacro m (x) `(* ,x ,x)) (m (+ 1 2))", "9")
+	mustEval(t, "(defmacro m (x) `(list ,x 0)) ((lambda (y) (m y)) 5)", "(listof 5 0)")
+	mustEval(t, "(defmacro m (x) `(quote ,x)) (m (+ 1 2))", "(listof '+ 1 2)")
+}
+
+func TestEvalDefMacroHelperAtExpansionTime(t *testing.T) {
+	mustEval(t, "(define (build q) `(quote ,q)) (defmacro m (x) (build x)) (m 5)", "5")
+	mustEval(t, "(define (build q) `(quote ,q)) (defmacro m (x) (build x)) (m foo)", "'foo")
+}
+
 func TestEvalIdentityReturnsThunk(t *testing.T) {
 	exps := parseSequence(t, "((lambda (x) x) 5)")
 	env, err := InitEnvironment()
@@ -291,6 +348,11 @@ func TestEvalIdentityReturnsThunk(t *testing.T) {
 func TestEvalDefineAndRecursion(t *testing.T) {
 	mustEval(t, "(define x 5) x", "5")
 	mustEval(t, "(define x 5) (define y 3) (+ x y)", "8")
+	mustEval(t, "(define x 5) (set! x 7) x", "7")
+	mustEval(t, "(define x 5) (set! x (+ x 1)) x", "6")
+	mustError(t, "(set! a 1)", "unbounded variable: a")
+	mustError(t, "(define b 1) (set! 5 2)", "set! requires a variable")
+	mustEval(t, "(define x 5) (defmacro inc (var) (list (quote set!) var (list (quote add1) var))) (define (add1 n) (+ n 1)) (inc x) x", "6")
 	mustEval(t, "(define (fact n) (if (= n 0) 1 (* n (fact (- n 1))))) (fact 10)", "3628800")
 	mustEval(t, "(define (make-adder n) (lambda (x) (+ x n))) ((make-adder 3) 4)", "7")
 }
