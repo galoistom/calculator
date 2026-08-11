@@ -131,8 +131,16 @@ func InitEnvironment() (*Environment, error) {
 		"display": {name: "display",
 			f: func(args []Expr) (Expr, error) {
 				for _, i := range args {
-					fmt.Println(i.Print())
+					if i != nil {
+						fmt.Println(i.Print())
+					}
 				}
+				return nil, nil
+			}},
+		"exit": {name: "exit",
+			f: func(args []Expr) (Expr, error) {
+				fmt.Println("Exited")
+				os.Exit(0)
 				return nil, nil
 			}},
 		"load": {name: "load",
@@ -147,6 +155,32 @@ func InitEnvironment() (*Environment, error) {
 					return Process(code)
 				}
 				return nil, fmt.Errorf("wrong number of arguments of load, need 1, get %d", len(args))
+			}},
+		"error": {name: "error",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					message := args[0].(String).content
+					return nil, errors.New(message)
+				}
+				return nil, fmt.Errorf("wrong number of arguments of error, need 1, get %d", len(args))
+			}},
+		"newline": {name: "newline",
+			f: func(args []Expr) (Expr, error) {
+				fmt.Println()
+				return nil, nil
+			}},
+		"pair?": {name: "pair?",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					if a, ok := args[0].(List); ok {
+						if len(a.args) >= 2 {
+							return Symbol{content: "true"}, nil
+						}
+						return Symbol{content: "false"}, nil
+					}
+					return Symbol{content: "false"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of pair?, need 1, get %d", len(args))
 			}},
 		"eq?": {name: "eq?",
 			f: func(args []Expr) (Expr, error) {
@@ -359,6 +393,9 @@ func InitEnvironment() (*Environment, error) {
 				return nil, errors.New("args legth incorrect to call abs ")
 			}},
 	}
+	for _, a := range composedAccessors() {
+		primitiveAction[a.name] = a
+	}
 
 	for i := range primitiveAction {
 		vars = append(vars, Symbol{content: i})
@@ -369,6 +406,52 @@ func InitEnvironment() (*Environment, error) {
 		return nil, err
 	}
 	return &new_env, nil
+}
+
+func makeAccessor(ops string) Action {
+	name := "c" + ops + "r"
+	return Action{
+		name: name,
+		f: func(args []Expr) (Expr, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("wrong number of arguments of %s, need 1, get %d", name, len(args))
+			}
+			var cur Expr = args[0]
+			for i := len(ops) - 1; i >= 0; i-- {
+				l, ok := cur.(List)
+				if !ok {
+					return nil, fmt.Errorf("%s: not a list", name)
+				}
+				if ops[i] == 'a' {
+					if len(l.args) == 0 {
+						return nil, fmt.Errorf("%s: empty list", name)
+					}
+					cur = l.args[0]
+				} else {
+					cur = List{args: l.args[1:]}
+				}
+			}
+			return cur, nil
+		},
+	}
+}
+
+func composedAccessors() []Action {
+	res := []Action{}
+	for depth := 2; depth <= 4; depth++ {
+		for mask := 0; mask < (1 << depth); mask++ {
+			ops := make([]byte, depth)
+			for i := 0; i < depth; i++ {
+				if mask&(1<<i) != 0 {
+					ops[i] = 'a'
+				} else {
+					ops[i] = 'd'
+				}
+			}
+			res = append(res, makeAccessor(string(ops)))
+		}
+	}
+	return res
 }
 
 func lookUpVariable(exp Symbol, env *Environment) (Expr, error) {
@@ -511,6 +594,31 @@ func evalLet(exp []Expr, env *Environment) (Expr, error) {
 	default:
 		return nil, errors.New("assignemnt syntax error")
 	}
+}
+
+func letStripStar(exps []Expr) (Expr, error) {
+	ass := exps[0].(List)
+	if len(ass.args) == 0 {
+		return List{args: append([]Expr{Symbol{content: "begin"}}, exps[1:]...)}, nil
+	}
+	rest, err := letStripStar(append([]Expr{
+		List{args: ass.args[1:]}},
+		exps[1:]...))
+	if err != nil {
+		return nil, err
+	}
+	return List{args: []Expr{
+		Symbol{content: "let"},
+		List{args: []Expr{List{args: ass.args[0].(List).args}}},
+		rest}}, nil
+}
+
+func evalLetStar(exps []Expr, env *Environment) (Expr, error) {
+	exp, err := letStripStar(exps)
+	if err != nil {
+		return nil, err
+	}
+	return Eval(exp, env)
 }
 
 func evalTrue(exp Expr) (bool, error) {
@@ -931,6 +1039,8 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 				return Symbol{content: "ok"}, evalDefinition(x.args[1:], env)
 			case "let":
 				return evalLet(x.args[1:], env)
+			case "let*":
+				return evalLetStar(x.args[1:], env)
 			case "if":
 				return evalIf(x.args[1:], env)
 			case "and":

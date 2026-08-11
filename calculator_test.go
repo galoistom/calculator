@@ -254,6 +254,17 @@ func TestEvalListAndQuote(t *testing.T) {
 	mustEval(t, "(cdr (quote (1 2 3)))", "(listof 2 3)")
 }
 
+func TestEvalComposedAccessors(t *testing.T) {
+	mustEval(t, "(cadr (quote (1 2 3)))", "2")
+	mustEval(t, "(caar (quote ((1 2) 3)))", "1")
+	mustEval(t, "(caddr (quote (1 2 3 4)))", "3")
+	mustEval(t, "(cddr (quote (1 2 3)))", "(listof 3)")
+	mustEval(t, "(cadar (quote ((1 2) (3 4))))", "2")
+	mustEval(t, "(cddddr (quote (1 2 3 4 5)))", "(listof 5)")
+	mustEval(t, "(caaaar (quote ((((1))))))", "1")
+	mustError(t, "(cadr (quote (1)))", "empty list")
+}
+
 func TestEvalConditionals(t *testing.T) {
 	mustEval(t, "(if (= 1 1) 10 20)", "10")
 	mustEval(t, "(if (= 1 2) 10 20)", "20")

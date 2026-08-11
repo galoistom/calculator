@@ -6,6 +6,7 @@ import (
 )
 
 var environment *Environment
+var show bool
 
 func Process(code string) (Expr, error) {
 	l := Lexer{input: code}
@@ -24,7 +25,7 @@ func Process(code string) (Expr, error) {
 			return nil, err
 		}
 	}
-	if res != nil {
+	if res != nil && show {
 		fmt.Println(res.Print())
 	}
 
@@ -42,6 +43,7 @@ func ReadFile(path string) (string, error) {
 
 func main() {
 	input := ""
+	show = true
 	var err error
 	switch os.Args[1] {
 	case "--help", "-h":
@@ -57,6 +59,7 @@ func main() {
 			fmt.Println(err)
 			return
 		}
+		show = false
 	case "--eval", "-e":
 		input = os.Args[2]
 	case "--repl", "-r":
