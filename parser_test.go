@@ -77,6 +77,52 @@ func TestParseSymbol(t *testing.T) {
 	}
 }
 
+func TestParseString(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{`"hello"`, `"hello"`},
+		{`"a b c"`, `"a b c"`},
+		{`""`, `""`},
+		{`"say \"hi\""`, `"say \"hi\""`},
+	}
+	for _, c := range cases {
+		got := parseExpr(t, c.in)
+		if _, ok := got.(String); !ok {
+			t.Errorf("Parse(%q) type = %T, want String", c.in, got)
+			continue
+		}
+		if got.Print() != c.want {
+			t.Errorf("Parse(%q).Print() = %q, want %q", c.in, got.Print(), c.want)
+		}
+	}
+}
+
+func TestParseStringInList(t *testing.T) {
+	got := parseExpr(t, `("hello" world)`)
+	lst, ok := got.(List)
+	if !ok || len(lst.args) != 2 {
+		t.Fatalf("Parse = %v, want a 2-element List", got)
+	}
+	if _, ok := lst.args[0].(String); !ok {
+		t.Errorf("args[0] type = %T, want String", lst.args[0])
+	}
+	if _, ok := lst.args[1].(Symbol); !ok {
+		t.Errorf("args[1] type = %T, want Symbol", lst.args[1])
+	}
+}
+
+func TestParseUnterminatedString(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Errorf("Parse(%q) expected a panic for unterminated string", `"abc`)
+		}
+	}()
+	l := Lexer{input: `"abc`}
+	p := Parser{tokens: l.GetToken(), position: 0}
+	_, _ = p.Parse()
+}
+
 func TestParseList(t *testing.T) {
 	got := parseExpr(t, "(+ 1 2)")
 	lst, ok := got.(List)

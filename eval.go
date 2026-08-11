@@ -674,7 +674,7 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 		return nil, nil
 	}
 	switch x := exp.(type) {
-	case Number:
+	case Number,String:
 		return x, nil
 	case Symbol:
 		return lookUpVariable(x, *env)

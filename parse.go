@@ -15,6 +15,7 @@ const (
 	NUMBER
 	IDENT
 	QUOTE
+	STRING
 	EOF
 )
 
@@ -95,6 +96,30 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
+func (l *Lexer) getString() Token {
+	res := Token{Type: STRING}
+	l.position++
+	for l.position < len(l.input) {
+		ch := l.input[l.position]
+		switch ch {
+		case '"':
+			l.position++
+			return res
+		case '\\':
+			l.position++
+			if l.position >= len(l.input) {
+				panic("unterminated string")
+			}
+			res.Value += string(l.input[l.position])
+			l.position++
+		default:
+			res.Value += string(ch)
+			l.position++
+		}
+	}
+	panic("unterminated string")
+}
+
 func (l *Lexer) nextToken() Token {
 	l.skipWhitespace()
 	if l.position >= len(l.input) {
@@ -111,6 +136,8 @@ func (l *Lexer) nextToken() Token {
 	case '\'':
 		l.position++
 		return Token{Type: QUOTE, Value: "'"}
+	case '"':
+		return l.getString()
 	}
 	if isOperator(ch) {
 		l.position++
@@ -159,6 +186,9 @@ func (p *Parser) Parse() (Expr, error) {
 			return nil, err
 		}
 		return List{args: []Expr{Symbol{content: "quote"}, content}}, nil
+	case STRING:
+		p.position++
+		return String{content: x.Value}, nil
 	case LPAREN:
 		p.position++
 		res := List{args: []Expr{}}

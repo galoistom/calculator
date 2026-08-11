@@ -259,6 +259,16 @@ func (x Complex) Print() string {
 	return fmt.Sprintf("%f+%fi", x.a, x.b)
 }
 
+// String literal
+type String struct {
+	content string
+}
+
+func (String) exprNode() {}
+func (s String) Print() string {
+	return fmt.Sprintf("%s", s.content)
+}
+
 // Implement types
 type Value interface {
 	Type() Type
