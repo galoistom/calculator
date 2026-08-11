@@ -239,6 +239,8 @@ func TestEvalArithmetic(t *testing.T) {
 		{"(int 7/2)", "3"},
 		{"(int 3.7)", "3"},
 		{"(c 3 4)", "3.000000+4.000000i"},
+		{"(+ 1 (+ 1 1) (* 2 4))", "11"},
+		{"(* 1 2 3)", "6"},
 		{"(abs (c 3 4))", "5"},
 	}
 	for _, c := range cases {
@@ -267,6 +269,8 @@ func TestEvalLambda(t *testing.T) {
 	mustEval(t, "((lambda (a b) (+ a b)) 2 3)", "5")
 	mustEval(t, "(begin 1 2 3)", "3")
 	mustEval(t, "(let ((a 3) (b 4)) (+ a b))", "7")
+	mustEval(t, "(define (apply2 f x) (f x)) (apply2 (lambda (n) (* n n)) 5)", "25")
+	mustEval(t, "(define (fold f i l) (if (null? l) i (fold f (f i (car l)) (cdr l)))) (+ (fold + 0 (list 1 2 3)) 0)", "6")
 }
 
 func TestParseQuasiquote(t *testing.T) {
@@ -359,7 +363,6 @@ func TestEvalDefineAndRecursion(t *testing.T) {
 
 func TestEvalErrors(t *testing.T) {
 	mustError(t, "foo", "unable to find variable")
-	mustError(t, "(+ 1 2 3)", "args legth incorrect to call +")
 	mustError(t, "(/ 1 0)", "divisor is 0")
 	mustError(t, "(if 1 2)", "wrong number of args to call if")
 	mustError(t, "(let ((a)) a)", "Wrong numbers of arguments in let")

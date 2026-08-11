@@ -162,6 +162,39 @@ func InitEnvironment() (*Environment, error) {
 			f: func(args []Expr) (Expr, error) {
 				return List{args: args}, nil
 			}},
+		"null?": {name: "null?",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					if l, ok := args[0].(List); ok {
+						if len(l.args) == 0 {
+							return Symbol{content: "true"}, nil
+						}
+						return Symbol{content: "false"}, nil
+					}
+					return nil, errors.New("Wrong type to call null?")
+				}
+				return nil, fmt.Errorf("wrong number of arguments of eq?, need 2, get %d", len(args))
+			}},
+		"cons": {name: "cons",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					var x, y []Expr
+					switch a := args[0].(type) {
+					case List:
+						x = a.args
+					default:
+						x = []Expr{a}
+					}
+					switch a := args[1].(type) {
+					case List:
+						y = a.args
+					default:
+						y = []Expr{a}
+					}
+					return List{args: append(x, y...)}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of eq?, need 2, get %d", len(args))
+			}},
 		"readline": {name: "readline",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 0 {
@@ -178,12 +211,21 @@ func InitEnvironment() (*Environment, error) {
 			}},
 		"+": {name: "+",
 			f: func(args []Expr) (Expr, error) {
-				if len(args) == 2 {
-					a := args[0].(Number).value
-					b := args[1].(Number).value
-					return Number{value: Add(a, b)}, nil
+				switch args[0].(type) {
+				case Number:
+					num := Value(Integer(0))
+					for _, k := range args {
+						num = Add(k.(Number).value, num)
+					}
+					return Number{value: num}, nil
+				case String:
+					var b strings.Builder
+					for _, k := range args {
+						fmt.Fprintf(&b, "%s", k.(String).content)
+					}
+					return String{content: b.String()}, nil
 				}
-				return nil, errors.New("args legth incorrect to call + ")
+				return nil, errors.New("wrong type to call +")
 			}},
 		"-": {name: "-",
 			f: func(args []Expr) (Expr, error) {
@@ -200,12 +242,11 @@ func InitEnvironment() (*Environment, error) {
 			}},
 		"*": {name: "*",
 			f: func(args []Expr) (Expr, error) {
-				if len(args) == 2 {
-					a := args[0].(Number).value
-					b := args[1].(Number).value
-					return Number{value: Times(a, b)}, nil
+				num := Value(Integer(1))
+				for _, k := range args {
+					num = Times(k.(Number).value, num)
 				}
-				return nil, errors.New("args legth incorrect to call * ")
+				return Number{value: num}, nil
 			}},
 		"/": {name: "/",
 			f: func(args []Expr) (Expr, error) {
@@ -613,7 +654,7 @@ func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
 }
 
 func evalApply(exps []Expr, env *Environment) (Expr, error) {
-	procedure, err := Eval(exps[0], env)
+	procedure, err := actualValue(exps[0], env)
 	if err != nil {
 		return nil, err
 	}
@@ -902,6 +943,8 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 				return evalListTail(x.args[1:], env)
 			case "cond":
 				return evalCond(x.args[1:], env)
+			case "eval":
+				return Eval(x.args[1], env)
 			default:
 				return evalApply(x.args, env)
 			}

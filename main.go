@@ -18,6 +18,12 @@ func Process(code string) (Expr, error) {
 	if err != nil {
 		return nil, err
 	}
+	if l, ok := res.(*List); ok {
+		res, err = forceIt(l)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if res != nil {
 		fmt.Println(res.Print())
 	}
@@ -40,6 +46,7 @@ func main() {
 	switch os.Args[1] {
 	case "--help", "-h":
 		fmt.Println("usage: calculator [option] <code>\n",
+			"        -r/--repl to enter repl\n",
 			"        -f/--file to read code from file\n",
 			"        -e/--eval to read from arguments")
 		return
@@ -52,6 +59,12 @@ func main() {
 		}
 	case "--eval", "-e":
 		input = os.Args[2]
+	case "--repl", "-r":
+		input, err = ReadFile("repl.scm")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 	environment, err = InitEnvironment()
 	if err != nil {
