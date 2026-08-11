@@ -63,11 +63,7 @@ func main() {
 	case "--eval", "-e":
 		input = os.Args[2]
 	case "--repl", "-r":
-		input, err = ReadFile("repl.scm")
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+		input = "(display \"type 'exit to exit\") (define (foldr func init l) (if (null? l) init (func (car l) (foldr func init (cdr l))))) (let loop () (let ((x (readline))) (if (eq? x 'exit) (display \"good bye!\")(loop))))"
 	}
 	environment, err = InitEnvironment()
 	if err != nil {

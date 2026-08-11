@@ -15,24 +15,56 @@
         ((cond? exp)
          (eval (cond->if exp) env))
         ((application? exp)
-         (my-apply (eval (car exp) env)
-                (list-of-values (cdr exp) env)))
+         (my-apply (actual-value (car exp) env)
+                (cdr exp) env))
         (else
          (error "Unknown expression type - EVAL" exp))))
 
-(define (my-apply procedure arguments)
+(define (my-apply procedure arguments env)
   (cond ((primitive-procedure? procedure)
-         (apply-primitive-procedure procedure arguments))
+         (apply-primitive-procedure
+          procedure (list-of-arg-values arguments env)))
         ((compound-procedure? procedure)
          (eval-sequence
           (procedure-body procedure)
           (extend-environment
            (procedure-parameters procedure)
-           arguments
+           (list-of-delayed-args arguments env)
            (procedure-environment procedure))))
         (else
          (error
           "Unknown procedure type - APPLY" procedure))))
+
+(define (delay-it exp env) (list 'thunk exp env))
+
+(define (list-of-delayed-args exps env)
+  (if (null? exps)
+      '()
+      (cons (delay-it (car exps) env)
+            (list-of-delayed-args (cdr exps) env))))
+
+(define (list-of-arg-values exps env)
+  (if (null? exps)
+      '()
+      (cons (actual-value (car exps) env)
+            (list-of-arg-values (cdr exps) env))))
+
+(define (thunk? obj) (tagged-list? obj 'thunk))
+
+(define (evaluated-thunk? obj)
+  (tagged-list? obj 'evaluated-thunk))
+
+(define (force-it obj)
+  (cond ((thunk? obj)
+         (let ((result (actual-value (cadr obj) (caddr obj))))
+           (set! obj (list 'evaluated-thunk result '()))
+           result))
+        ((evaluated-thunk? obj)
+         (cadr obj))
+        (else obj)))
+
+(define (actual-value exp env)
+  (force-it (eval exp env)))
 
 (define (eval-and exps env)
   (define (iter exp)
@@ -51,6 +83,7 @@
   (iter exps))
 
 (define (and? exp) (tagged-list? exp 'and))
+
 (define (or? exp) (tagged-list? exp 'or))
 
 (define (eval-let exp env)
@@ -90,7 +123,7 @@
         (cond ((eq? (car first) 'else)
                (if (null? rest)
                    (sequence->exp (cdr first))
-                   (error "ELSE claus isn't last - COND->IF")))
+                   (error "ELSE claus isn't lase - COND->IF")))
               ((and (pair? (cdr first))
                     (pair? (cddr first))
                     (eq? (cadr first) '=>))
@@ -123,7 +156,7 @@
 (define (lambda? exp) (tagged-list? exp 'lambda))
 
 (define (eval-if exp env)
-  (if (eval (cadr exp) env)
+  (if (actual-value (cadr exp) env)
       (eval (caddr exp) env)
       (eval (if (null? (cdddr exp)) false (cadddr exp)) env)))
 
@@ -133,10 +166,10 @@
 (define (if? exp) (tagged-list? exp 'if))
 (define (eval-definition exp env)
   (define-variable! (definition-valriable exp)
-    (eval (defineition-value exp) env)
+    (eval (definition-value exp) env)
     env)
   'ok)
-(define (defineition-value exp)
+(define (definition-value exp)
   (if (symbol? (cadr exp))
       (caddr exp)
       (make-lambda (cdadr exp) (cddr exp))))
@@ -174,6 +207,9 @@
       (cadr exp)
       (caadr exp)))
 
+(define (define-variable! var val env)
+  (hash-ref! (car env) var val))
+
 (define the-empty-environment '())
 
 (define (make-frame variables values)
@@ -207,10 +243,11 @@
       (else (env-loop (cdr env)))))
   (env-loop env))
 
-(define (define-variable! var val env)
-  (hash-ref! (car env) var val))
-
 (define apply-in-underlying-scheme apply)
+
+
+(define (comound-procedure? p)
+  (tagged-list? p 'procdure))
 
 (define (primitive-procedure? proc) (tagged-list? proc 'primitive))
 
@@ -248,13 +285,10 @@
         (list '> >)
         (list 'list list)
         (list 'eq? eq?)
-        (list 'exit exit)
         (list 'assoc assoc)
         (list 'display display)
-        (list 'egg egg)
+        (list 'exit exit)
         (list 'newline newline)))
-
-(define egg (lambda () (display 69)))
 
 (define (driver-loop)
   (let ((input (readline)))
@@ -280,4 +314,6 @@
       (display object)))
 
 (define the-global-environment (setup-environment))
+
+(display "a small scheme interpreter running on scheme")
 (driver-loop)
