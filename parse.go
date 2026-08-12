@@ -64,12 +64,15 @@ func isDigit(ch byte) bool {
 
 func (l *Lexer) skipWhitespace() {
 	for l.position < len(l.input) {
-		if l.input[l.position] == ' ' ||
-			l.input[l.position] == '\n' ||
-			l.input[l.position] == '\t' {
+		switch l.input[l.position] {
+		case ' ', '\n', '\t':
 			l.position++
-		} else {
-			break
+		case ';':
+			for l.position < len(l.input) && l.input[l.position] != '\n' {
+				l.position++
+			}
+		default:
+			return
 		}
 	}
 }
@@ -86,7 +89,7 @@ func (l *Lexer) getString() Token {
 		case '\\':
 			l.position++
 			if l.position >= len(l.input) {
-				panic("unterminated string")
+				panic("unterminated string literal")
 			}
 			res.Value += string(l.input[l.position])
 			l.position++
@@ -95,7 +98,7 @@ func (l *Lexer) getString() Token {
 			l.position++
 		}
 	}
-	panic("unterminated string")
+	panic("unterminated string literal")
 }
 
 func (l *Lexer) nextToken() Token {
@@ -135,7 +138,7 @@ func (l *Lexer) nextToken() Token {
 	} else if isLetter(ch) {
 		return l.getOp()
 	}
-	panic("invalid symbol")
+	panic(fmt.Sprintf("unexpected character %q", ch))
 }
 
 func (l *Lexer) GetToken() []Token {
@@ -149,7 +152,7 @@ func (l *Lexer) GetToken() []Token {
 
 func (p *Parser) Parse() (Expr, error) {
 	if p.position >= len(p.tokens) {
-		return nil, fmt.Errorf("no tokens")
+		return nil, fmt.Errorf("no tokens to parse")
 	}
 	switch x := p.tokens[p.position]; x.Type {
 	case NUMBER:
@@ -202,7 +205,7 @@ func (p *Parser) Parse() (Expr, error) {
 				break
 			}
 			if y.Type == EOF {
-				return nil, fmt.Errorf("invalid sentences, ( is not closed")
+				return nil, fmt.Errorf("unbalanced parentheses: ( is not closed")
 			}
 			t, err := p.Parse()
 			if err != nil {
@@ -216,7 +219,7 @@ func (p *Parser) Parse() (Expr, error) {
 		p.position++
 		return nil, nil
 	default:
-		return nil, fmt.Errorf("invalid sentences")
+		return nil, fmt.Errorf("unexpected token %q", x.Value)
 	}
 }
 
