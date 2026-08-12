@@ -162,12 +162,26 @@ func TestParseSequence(t *testing.T) {
 	}
 }
 
+func TestParseComments(t *testing.T) {
+	got := parseSequence(t, "; leading comment\n1 ; trailing\n2 (+ 1 ; inline\n2)")
+	if len(got) != 3 {
+		t.Fatalf("ParseSequence length = %d, want 3", len(got))
+	}
+	if got[0].Print() != "1" {
+		t.Errorf("expr[0] = %s, want 1", got[0].Print())
+	}
+	gotString := parseExpr(t, `"; not a comment"`)
+	if _, ok := gotString.(String); !ok {
+		t.Errorf("string with ; parsed as %T, want String", gotString)
+	}
+}
+
 func TestParseErrors(t *testing.T) {
 	cases := []struct {
 		in, want string
 	}{
 		{"( + 1", "( is not closed"},
-		{")", "invalid sentences"},
+		{")", "unexpected token"},
 	}
 	for _, c := range cases {
 		l := Lexer{input: c.in}
@@ -252,6 +266,28 @@ func TestEvalListAndQuote(t *testing.T) {
 	mustEval(t, "(list 1 2 3)", "(listof 1 2 3)")
 	mustEval(t, "(car (quote (1 2 3)))", "1")
 	mustEval(t, "(cdr (quote (1 2 3)))", "(listof 2 3)")
+	mustEval(t, "(cons 1 (quote (2 3)))", "(listof 1 2 3)")
+	mustEval(t, "(cons (quote (1 2)) (quote ()))", "(listof (listof 1 2))")
+	mustEval(t, "(cons (quote (1 2)) (quote (3 4)))", "(listof (listof 1 2) 3 4)")
+}
+
+func TestEvalApply(t *testing.T) {
+	mustEval(t, "(apply + (list 1 1))", "2")
+	mustEval(t, "(apply + (quote (1 2)))", "3")
+	mustEval(t, "(apply car (list (quote (1 2))))", "1")
+	mustEval(t, "(apply + 1 2 (list 3 4))", "10")
+	mustEval(t, "(define p (list (quote primitive) +)) (apply (cadr p) (list 1 2))", "3")
+}
+
+func TestEvalKeywordShadowing(t *testing.T) {
+	mustEval(t, "(let ((apply +)) (apply 1 2))", "3")
+	mustEval(t, "((lambda (apply) (apply 1 2)) +)", "3")
+	mustEval(t, "(define (map f l) (list (quote custom) f)) (map car (list 1 2))", "(listof 'custom (listof 'primitive car))")
+	mustEval(t, "(define (eval x y) (quote custom)) (eval (quote a) (quote b))", "'custom")
+	mustEval(t, "(define x 5) (let ((a 1)) (+ a x))", "6")
+	mustEval(t, "(define x apply) x", "'apply")
+	mustEval(t, "(define x define) x", "'define")
+	mustEval(t, "(define x let) x", "'let")
 }
 
 func TestEvalComposedAccessors(t *testing.T) {
@@ -282,6 +318,7 @@ func TestEvalLambda(t *testing.T) {
 	mustEval(t, "(let ((a 3) (b 4)) (+ a b))", "7")
 	mustEval(t, "(define (apply2 f x) (f x)) (apply2 (lambda (n) (* n n)) 5)", "25")
 	mustEval(t, "(define (fold f i l) (if (null? l) i (fold f (f i (car l)) (cdr l)))) (+ (fold + 0 (list 1 2 3)) 0)", "6")
+	mustEval(t, "((lambda (x) (list x x)) (quote hello))", "(listof 'hello 'hello)")
 }
 
 func TestParseQuasiquote(t *testing.T) {
@@ -351,13 +388,24 @@ func TestEvalIdentityReturnsThunk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	lst, ok := res.(*List)
+	_, ok := res.(*Thunk)
 	if !ok {
 		t.Fatalf("identity applied to 5 returned %T, want an unevaluated thunk", res)
 	}
-	if s, ok := lst.args[0].(Symbol); !ok || s.content != "thunk" {
-		t.Errorf("thunk head = %v, want Symbol(thunk)", lst.args[0])
-	}
+}
+
+func TestEvalMapFilter(t *testing.T) {
+	mustEval(t, "(map car (list (list 1 2) (list 3 4)))", "(listof 1 3)")
+	mustEval(t, "(map cdr (list (list 1 2) (list 3 4)))", "(listof (listof 2) (listof 4))")
+	mustEval(t, "(map (lambda (x) (+ x 1)) (list 1 2 3))", "(listof 2 3 4)")
+	mustEval(t, "(define (my-map f l) (map f l)) (my-map car (list (list 1 2) (list 3 4)))", "(listof 1 3)")
+	mustEval(t, "(filter (lambda (x) (= x 1)) (list 1 2 1 3))", "(listof 1 1)")
+	mustEval(t, "(define total 0) (for-each (lambda (x) (set! total (+ total x))) (list 1 2 3)) total", "6")
+	mustEval(t, "(define total 0) (for-each (lambda (x) (set! total (* total x))) (list 1 2 3)) total", "0")
+	mustEval(t, "(fold + 0 (list 1 2 3))", "6")
+	mustEval(t, "(define (my-fold f i l) (fold f i l)) (my-fold + 0 (list 1 2 3))", "6")
+	mustEval(t, "(fold (lambda (a b) (cons b a)) (quote ()) (list 1 2 3))", "(listof 3 2 1)")
+	mustEval(t, "(define (append a b) (if (null? a) b (cons (car a) (append (cdr a) b)))) (fold append (quote ()) (list (list 1 2) (list 3 4)))", "(listof 1 2 3 4)")
 }
 
 func TestEvalDefineAndRecursion(t *testing.T) {
@@ -365,23 +413,25 @@ func TestEvalDefineAndRecursion(t *testing.T) {
 	mustEval(t, "(define x 5) (define y 3) (+ x y)", "8")
 	mustEval(t, "(define x 5) (set! x 7) x", "7")
 	mustEval(t, "(define x 5) (set! x (+ x 1)) x", "6")
-	mustError(t, "(set! a 1)", "unbounded variable: a")
+	mustError(t, "(set! a 1)", "unbound variable: 'a")
 	mustError(t, "(define b 1) (set! 5 2)", "set! requires a variable")
+	mustError(t, "(define x (undefined-fn))", "unbound variable: 'undefined-fn")
+	mustError(t, "(define x (/ 1 0))", "division by zero")
 	mustEval(t, "(define x 5) (defmacro inc (var) (list (quote set!) var (list (quote add1) var))) (define (add1 n) (+ n 1)) (inc x) x", "6")
 	mustEval(t, "(define (fact n) (if (= n 0) 1 (* n (fact (- n 1))))) (fact 10)", "3628800")
 	mustEval(t, "(define (make-adder n) (lambda (x) (+ x n))) ((make-adder 3) 4)", "7")
 }
 
 func TestEvalErrors(t *testing.T) {
-	mustError(t, "foo", "unable to find variable")
-	mustError(t, "(/ 1 0)", "divisor is 0")
-	mustError(t, "(if 1 2)", "wrong number of args to call if")
-	mustError(t, "(let ((a)) a)", "Wrong numbers of arguments in let")
+	mustError(t, "foo", "unbound variable: 'foo")
+	mustError(t, "(/ 1 0)", "division by zero")
+	mustError(t, "(if 1 2)", "need 3, get 2")
+	mustError(t, "(let ((a)) a)", "each binding must be a (name value) pair")
 }
 
 func TestLazyArguments(t *testing.T) {
 	mustEval(t, "((lambda (x) 5) (/ 1 0))", "5")
-	mustError(t, "((lambda (x) (+ x 1)) (/ 1 0))", "divisor is 0")
+	mustError(t, "((lambda (x) (+ x 1)) (/ 1 0))", "division by zero")
 }
 
 func TestLetBindingsAreValuesNotReevaluated(t *testing.T) {
