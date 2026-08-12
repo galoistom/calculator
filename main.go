@@ -19,7 +19,7 @@ func Process(code string) (Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if l, ok := res.(*List); ok {
+	if l, ok := res.(*Thunk); ok {
 		res, err = forceIt(l)
 		if err != nil {
 			return nil, err

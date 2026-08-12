@@ -40,6 +40,22 @@ type Action struct {
 	f    func([]Expr) (Expr, error)
 }
 
+type Procedure struct {
+	body       []Expr
+	parameters []Expr
+	env        *Environment
+}
+
+type Hash struct {
+	hash map[string]Expr
+}
+
+type Thunk struct {
+	thunk bool
+	exp   Expr
+	env   *Environment
+}
+
 type Macro struct {
 	name   string
 	para   []Expr
@@ -51,7 +67,6 @@ type String struct {
 	content string
 }
 
-// splice marks an unquote-splicing result inside a quasiquote
 type splice struct {
 	args []Expr
 }
@@ -121,7 +136,7 @@ func (a Integer) divUp(b Integer) (Integer, error) {
 
 func (a Integer) divDown(b Integer) (Integer, error) {
 	if b == 0 {
-		return a, errors.New("illegal action: divisor is 0")
+		return a, errors.New("division by zero")
 	}
 	return a / b, nil
 }
@@ -174,7 +189,7 @@ func (a Rational) neg() Rational {
 
 func (a Rational) inv() (Rational, error) {
 	if a.p == 0 {
-		return a, errors.New("illegal action: the divisor is 0")
+		return a, errors.New("division by zero")
 	}
 	return Rational{
 		p: a.q,
@@ -247,7 +262,7 @@ func (a Real) times(b Real) Real {
 
 func (a Real) div(b Real) (Real, error) {
 	if b == 0 {
-		return a, errors.New("illegal action: divisor is 0")
+		return a, errors.New("division by zero")
 	}
 	return a / b, nil
 }
@@ -408,7 +423,7 @@ func Add(a Value, b Value) Value {
 	case Complex:
 		return x.add(b.(Complex))
 	default:
-		panic("unsupport types")
+		panic(fmt.Sprintf("unsupported types: %T and %T", a, b))
 	}
 }
 
@@ -424,7 +439,7 @@ func Minu(a Value, b Value) Value {
 	case Complex:
 		return x.minu(b.(Complex))
 	default:
-		panic("unsupport types")
+		panic(fmt.Sprintf("unsupported types: %T and %T", a, b))
 	}
 }
 
@@ -440,7 +455,7 @@ func Times(a Value, b Value) Value {
 	case Complex:
 		return x.times(b.(Complex))
 	default:
-		panic("unsupport types")
+		panic(fmt.Sprintf("unsupported types: %T and %T", a, b))
 	}
 }
 
@@ -468,7 +483,7 @@ func Div(a Value, b Value) (Value, error) {
 		}
 		return res, nil
 	default:
-		panic("unsupport types")
+		panic(fmt.Sprintf("unsupported types: %T and %T", a, b))
 	}
 }
 
@@ -481,7 +496,7 @@ func Int(a Value) (Integer, error) {
 	case Real:
 		return x.Int(), nil
 	default:
-		panic("not implemented yet")
+		panic(fmt.Sprintf("unsupported type: %T", a))
 	}
 }
 
@@ -496,7 +511,7 @@ func Abs(a Value) Value {
 	case Complex:
 		return x.Abs()
 	default:
-		panic("not implemented yet")
+		panic(fmt.Sprintf("unsupported type: %T", a))
 	}
 }
 
@@ -511,7 +526,7 @@ func oneOf(a Value) Value {
 	case Complex:
 		return Complex{a: 1, b: 0}
 	default:
-		panic("not implemented yet")
+		panic(fmt.Sprintf("unsupported type: %T", a))
 	}
 }
 
@@ -538,6 +553,6 @@ func IsZero(a Value) bool {
 	case Complex:
 		return x == Complex{a: 0, b: 0}
 	default:
-		panic("not implemented yet")
+		panic(fmt.Sprintf("unsupported type: %T", a))
 	}
 }

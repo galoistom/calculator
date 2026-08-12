@@ -9,13 +9,24 @@ import (
 	"strings"
 )
 
+var keywords = map[string]bool{
+	"quote": true, "quasiquote": true, "unquote": true, "unquote-splicing": true,
+	"set!": true, "define": true, "let": true, "if": true, "and": true, "or": true,
+	"lambda": true, "begin": true, "defmacro": true, "cond": true,
+	"map": true, "for-each": true, "filter": true, "fold": true, "eval": true, "apply": true,
+}
+
+func isKeyword(name string) bool {
+	return keywords[name]
+}
+
 func make_frame(vars []Expr, vals []Expr) (frame, error) {
 	res := make(frame)
 	for i := range vars {
 		if j, ok := vars[i].(Symbol); ok {
 			res[j.content] = vals[i]
 		} else {
-			return nil, errors.New("frame should only contain symbol")
+			return nil, errors.New("frame should only contain symbols")
 		}
 	}
 	return res, nil
@@ -30,18 +41,13 @@ func (env Environment) extend_environment(vars []Expr, vals []Expr) (Environment
 		env.env = append([]frame{res}, env.env...)
 		return env, nil
 	}
-	return Environment{}, errors.New("numbers of values and variables dose not match")
-}
-func (env *Environment) exprNode() {}
-func (env *Environment) Print() string {
-	return fmt.Sprint(*env)
+	return Environment{}, fmt.Errorf("extend_environment: number of variables (%d) does not match number of values (%d)", len(vars), len(vals))
 }
 
 func (Number) exprNode() {}
 func (n Number) Print() string {
 	return n.value.Print()
 }
-
 func (x stringNumber) getValue() (Number, error) {
 	num := x.Value
 	if strings.Contains(num, ".") {
@@ -96,8 +102,38 @@ func (f Action) Print() string {
 }
 
 func (splice) exprNode() {}
-func (s splice) Print() string {
+func (splice) Print() string {
 	return "(splice)"
+}
+
+func (Procedure) exprNode() {}
+func (Procedure) Print() string {
+	return "(Procedure)"
+}
+
+func (Hash) exprNode() {}
+func (h Hash) Print() string {
+	var b strings.Builder
+	b.WriteString("(hash:")
+	for i, j := range h.hash {
+		fmt.Fprintf(&b, " (%s: %s)", i, j.Print())
+	}
+	b.WriteString(")")
+	return b.String()
+}
+func (h *Hash) set(vari Expr, val Expr) {
+	h.hash[vari.Print()] = val
+}
+func (h Hash) ref(vari Expr) (Expr, bool) {
+	if e, ok := h.hash[vari.Print()]; ok {
+		return e, true
+	}
+	return nil, false
+}
+
+func (Thunk) exprNode() {}
+func (t Thunk) Print() string {
+	return fmt.Sprintf("(thunk: %v (%s))", t.thunk, t.exp.Print())
 }
 
 func (Macro) exprNode() {}
@@ -107,13 +143,49 @@ func (m Macro) Print() string {
 
 func InitEnvironment() (*Environment, error) {
 	env := Environment{[]frame{{
-		"true":  Symbol{content: "true"},
-		"false": Symbol{content: "false"}}}}
+		"true":  Symbol{"true"},
+		"false": Symbol{"false"}}}}
 	vals := []Expr{}
 	vars := []Expr{}
 	var inputScanner = bufio.NewScanner(os.Stdin)
-
 	var primitiveAction = map[string]Action{
+		"make-hash": {name: "make-hash",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 0 {
+					return &Hash{make(map[string]Expr)}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of make-hash, need 0, get %d", len(args))
+			}},
+		"hash-ref": {name: "hash-ref",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					if a, ok := args[0].(*Hash).ref(args[1]); ok {
+						return a, nil
+					}
+					return List{}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of hash-ref, need 2, get %d", len(args))
+			}},
+		"hash-ref!": {name: "hash-ref!",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 3 {
+					h := args[0].(*Hash)
+					if a, ok := h.ref(args[1]); ok {
+						return a, nil
+					}
+					h.set(args[1], args[2])
+					return Symbol{"ok"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of hash-ref!, need 3, get %d", len(args))
+			}},
+		"hash-set!": {name: "hash-set!",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 3 {
+					args[0].(*Hash).set(args[1], args[2])
+					return Symbol{"ok"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of hash-set!, need 3, get %d", len(args))
+			}},
 		"car": {name: "car",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
@@ -124,7 +196,7 @@ func InitEnvironment() (*Environment, error) {
 		"cdr": {name: "cdr",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
-					return List{args: args[0].(List).args[1:]}, nil
+					return List{args[0].(List).args[1:]}, nil
 				}
 				return nil, fmt.Errorf("wrong number of arguments of cdr, need 1, get %d", len(args))
 			}},
@@ -158,11 +230,12 @@ func InitEnvironment() (*Environment, error) {
 			}},
 		"error": {name: "error",
 			f: func(args []Expr) (Expr, error) {
-				if len(args) == 1 {
-					message := args[0].(String).content
-					return nil, errors.New(message)
+				b := strings.Builder{}
+				b.WriteString("error:")
+				for _, a := range args {
+					fmt.Fprintf(&b, " %s", a.Print())
 				}
-				return nil, fmt.Errorf("wrong number of arguments of error, need 1, get %d", len(args))
+				return nil, errors.New(b.String())
 			}},
 		"newline": {name: "newline",
 			f: func(args []Expr) (Expr, error) {
@@ -172,13 +245,40 @@ func InitEnvironment() (*Environment, error) {
 		"pair?": {name: "pair?",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
-					if a, ok := args[0].(List); ok {
-						if len(a.args) >= 2 {
-							return Symbol{content: "true"}, nil
-						}
-						return Symbol{content: "false"}, nil
+					if _, ok := args[0].(List); ok {
+						return Symbol{"true"}, nil
 					}
-					return Symbol{content: "false"}, nil
+					return Symbol{"false"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of pair?, need 1, get %d", len(args))
+			}},
+		"number?": {name: "number?",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					if _, ok := args[0].(Number); ok {
+						return Symbol{"true"}, nil
+					}
+					return Symbol{"false"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of number?, need 1, get %d", len(args))
+			}},
+		"string?": {name: "string?",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					if _, ok := args[0].(String); ok {
+						return Symbol{"true"}, nil
+					}
+					return Symbol{"false"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of string?, need 1, get %d", len(args))
+			}},
+		"symbol?": {name: "symbol?",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					if _, ok := args[0].(Symbol); ok {
+						return Symbol{"true"}, nil
+					}
+					return Symbol{"false"}, nil
 				}
 				return nil, fmt.Errorf("wrong number of arguments of pair?, need 1, get %d", len(args))
 			}},
@@ -186,22 +286,22 @@ func InitEnvironment() (*Environment, error) {
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
 					if args[0] == args[1] {
-						return Symbol{content: "true"}, nil
+						return Symbol{"true"}, nil
 					}
-					return Symbol{content: "false"}, nil
+					return Symbol{"false"}, nil
 				}
 				return nil, fmt.Errorf("wrong number of arguments of eq?, need 2, get %d", len(args))
 			}},
 		"list": {name: "list",
 			f: func(args []Expr) (Expr, error) {
-				return List{args: args}, nil
+				return List{args}, nil
 			}},
-		"list-len": {name: "list-len",
+		"length": {name: "length",
 			f: func(args []Expr) (Expr, error) {
 				if list, ok := args[0].(List); ok {
-					return Number{value: Integer(len(list.args))}, nil
+					return Number{Integer(len(list.args))}, nil
 				}
-				return nil, errors.New("list-len only accept list")
+				return nil, fmt.Errorf("list-len expects a list, got %T", args[0])
 			}},
 		"list-tail": {name: "list-tail",
 			f: func(args []Expr) (Expr, error) {
@@ -212,9 +312,9 @@ func InitEnvironment() (*Environment, error) {
 					if err != nil {
 						return nil, err
 					}
-					return List{args: list.args[index:]}, nil
+					return List{list.args[index:]}, nil
 				}
-				return nil, errors.New("wrong number of arguments to call list-tail")
+				return nil, fmt.Errorf("wrong number of arguments of list-tail, need 2, get %d", len(args))
 			}},
 		"list-set!": {name: "list-set!",
 			f: func(args []Expr) (Expr, error) {
@@ -229,7 +329,7 @@ func InitEnvironment() (*Environment, error) {
 					list.args[int(index)] = res
 					return list, nil
 				}
-				return nil, errors.New("wrong number of arguments to call list-set")
+				return nil, fmt.Errorf("wrong number of arguments of list-set!, need 3, get %d", len(args))
 			}},
 		"list-ref": {name: "list-ref",
 			f: func(args []Expr) (Expr, error) {
@@ -242,40 +342,34 @@ func InitEnvironment() (*Environment, error) {
 					}
 					return list.args[int(index)], nil
 				}
-				return nil, errors.New("wrong number of arguments to call list-ref")
+				return nil, fmt.Errorf("wrong number of arguments of list-ref, need 2, get %d", len(args))
 			}},
 		"null?": {name: "null?",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
+					if args[0] == nil {
+						return Symbol{"true"}, nil
+					}
 					if l, ok := args[0].(List); ok {
 						if len(l.args) == 0 {
-							return Symbol{content: "true"}, nil
+							return Symbol{"true"}, nil
 						}
-						return Symbol{content: "false"}, nil
+						return Symbol{"false"}, nil
 					}
-					return nil, errors.New("Wrong type to call null?")
+					return Symbol{"false"}, nil
 				}
-				return nil, fmt.Errorf("wrong number of arguments of eq?, need 2, get %d", len(args))
+				return nil, fmt.Errorf("wrong number of arguments of null?, need 1, get %d", len(args))
 			}},
 		"cons": {name: "cons",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
-					var x, y []Expr
-					switch a := args[0].(type) {
-					case List:
-						x = a.args
-					default:
-						x = []Expr{a}
+					y := []Expr{args[1]}
+					if lst, ok := args[1].(List); ok {
+						y = lst.args
 					}
-					switch a := args[1].(type) {
-					case List:
-						y = a.args
-					default:
-						y = []Expr{a}
-					}
-					return List{args: append(x, y...)}, nil
+					return List{append([]Expr{args[0]}, y...)}, nil
 				}
-				return nil, fmt.Errorf("wrong number of arguments of eq?, need 2, get %d", len(args))
+				return nil, fmt.Errorf("wrong number of arguments of cons, need 2, get %d", len(args))
 			}},
 		"readline": {name: "readline",
 			f: func(args []Expr) (Expr, error) {
@@ -289,7 +383,41 @@ func InitEnvironment() (*Environment, error) {
 						fmt.Println("failed to read", err)
 					}
 				}
-				return nil, errors.New("readline should not have any args")
+				return nil, fmt.Errorf("readline expects no arguments, got %d", len(args))
+			}},
+		"readline-raw": {name: "readline-raw",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 0 {
+					fmt.Print("input:")
+					if inputScanner.Scan() {
+						line := inputScanner.Text()
+						l := Lexer{input: line}
+						p := Parser{tokens: l.GetToken(), position: 0}
+						exp, err := p.Parse()
+						if err != nil {
+							return nil, err
+						}
+						return exp, nil
+					}
+					if err := inputScanner.Err(); err != nil {
+						fmt.Println("failed to read", err)
+					}
+				}
+				return nil, fmt.Errorf("readline expects no arguments, got %d", len(args))
+			}},
+		"not": {name: "not",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					t, err := evalTrue(args[0])
+					if err != nil {
+						return nil, err
+					}
+					if t {
+						return Symbol{"true"}, nil
+					}
+					return Symbol{"false"}, nil
+				}
+				return nil, fmt.Errorf("readline expects no arguments, got %d", len(args))
 			}},
 		"+": {name: "+",
 			f: func(args []Expr) (Expr, error) {
@@ -299,15 +427,15 @@ func InitEnvironment() (*Environment, error) {
 					for _, k := range args {
 						num = Add(k.(Number).value, num)
 					}
-					return Number{value: num}, nil
+					return Number{num}, nil
 				case String:
 					var b strings.Builder
 					for _, k := range args {
 						fmt.Fprintf(&b, "%s", k.(String).content)
 					}
-					return String{content: b.String()}, nil
+					return String{b.String()}, nil
 				}
-				return nil, errors.New("wrong type to call +")
+				return nil, fmt.Errorf("cannot apply + to %T, expected numbers or strings", args[0])
 			}},
 		"-": {name: "-",
 			f: func(args []Expr) (Expr, error) {
@@ -320,7 +448,7 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					return Number{value: Minu(Integer(0), a)}, nil
 				}
-				return nil, errors.New("args legth incorrect to call - ")
+				return nil, fmt.Errorf("wrong number of arguments of -, need 1 or 2, get %d", len(args))
 			}},
 		"*": {name: "*",
 			f: func(args []Expr) (Expr, error) {
@@ -338,7 +466,7 @@ func InitEnvironment() (*Environment, error) {
 					res, err := Div(a, b)
 					return Number{value: res}, err
 				}
-				return nil, errors.New("args legth incorrect to call / ")
+				return nil, fmt.Errorf("wrong number of arguments of /, need 2, get %d", len(args))
 			}},
 		"=": {name: "=",
 			f: func(args []Expr) (Expr, error) {
@@ -346,12 +474,43 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					if IsZero(Minu(a, b)) {
-						return Symbol{content: "true"}, nil
+						return Symbol{"true"}, nil
 					}
-					return Symbol{content: "false"}, nil
-
+					return Symbol{"false"}, nil
 				}
-				return nil, errors.New("args legth incorrect to call = ")
+				return nil, fmt.Errorf("wrong number of arguments of =, need 2, get %d", len(args))
+			}},
+		"<": {name: "<",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					if a.Type() == ComplexType || b.Type() == ComplexType {
+						return nil, errors.New("comlex cannot conpare type")
+					}
+					res := Add(Real(0), Minu(a, b))
+					if res.(Real) < 0 {
+						return Symbol{"true"}, nil
+					}
+					return Symbol{"false"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of <, need 2, get %d", len(args))
+			}},
+		">": {name: ">",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					if a.Type() == ComplexType || b.Type() == ComplexType {
+						return nil, errors.New("comlex cannot conpare type")
+					}
+					res := Add(Real(0), Minu(a, b))
+					if res.(Real) > 0 {
+						return Symbol{"true"}, nil
+					}
+					return Symbol{"false"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of <, need 2, get %d", len(args))
 			}},
 		"pow": {name: "pow",
 			f: func(args []Expr) (Expr, error) {
@@ -360,11 +519,11 @@ func InitEnvironment() (*Environment, error) {
 					b := args[1].(Number).value
 					x, ok := b.(Integer)
 					if !ok {
-						return Number{value: x}, errors.New("none integer power is not implemented yet")
+						return nil, errors.New("pow with a non-integer exponent is not implemented yet")
 					}
 					return Number{value: Power(a, int(x))}, nil
 				}
-				return nil, errors.New("args legth incorrect to call pow ")
+				return nil, fmt.Errorf("wrong number of arguments of pow, need 2, get %d", len(args))
 			}},
 		"c": {name: "c",
 			f: func(args []Expr) (Expr, error) {
@@ -373,7 +532,7 @@ func InitEnvironment() (*Environment, error) {
 					b := args[1].(Number).value
 					return Number{value: Add(a, Times(Complex{a: 0, b: 1}, b))}, nil
 				}
-				return nil, errors.New("args legth incorrect to call c ")
+				return nil, fmt.Errorf("wrong number of arguments of c, need 2, get %d", len(args))
 			}},
 		"abs": {name: "abs",
 			f: func(args []Expr) (Expr, error) {
@@ -381,7 +540,7 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					return Number{value: Abs(a)}, nil
 				}
-				return nil, errors.New("args legth incorrect to call abs ")
+				return nil, fmt.Errorf("wrong number of arguments of abs, need 1, get %d", len(args))
 			}},
 		"int": {name: "int",
 			f: func(args []Expr) (Expr, error) {
@@ -390,7 +549,7 @@ func InitEnvironment() (*Environment, error) {
 					res, err := Int(a)
 					return Number{value: res}, err
 				}
-				return nil, errors.New("args legth incorrect to call abs ")
+				return nil, fmt.Errorf("wrong number of arguments of int, need 1, get %d", len(args))
 			}},
 	}
 	for _, a := range composedAccessors() {
@@ -398,8 +557,8 @@ func InitEnvironment() (*Environment, error) {
 	}
 
 	for i := range primitiveAction {
-		vars = append(vars, Symbol{content: i})
-		vals = append(vals, List{args: []Expr{Symbol{content: "primitive"}, primitiveAction[i]}})
+		vars = append(vars, Symbol{i})
+		vals = append(vals, List{[]Expr{Symbol{"primitive"}, primitiveAction[i]}})
 	}
 	new_env, err := env.extend_environment(vars, vals)
 	if err != nil {
@@ -428,7 +587,7 @@ func makeAccessor(ops string) Action {
 					}
 					cur = l.args[0]
 				} else {
-					cur = List{args: l.args[1:]}
+					cur = List{l.args[1:]}
 				}
 			}
 			return cur, nil
@@ -461,16 +620,16 @@ func lookUpVariable(exp Symbol, env *Environment) (Expr, error) {
 			return res, nil
 		}
 	}
-	return nil, fmt.Errorf("unable to find variable %s's value", exp.content)
+	return nil, fmt.Errorf("unbound variable: %s", exp.Print())
 }
 
 func evalAssignment(exp []Expr, env *Environment) error {
 	if len(exp) != 2 {
-		return errors.New("in correct numbers of argumens for set!")
+		return fmt.Errorf("wrong number of arguments of set!, need 2, get %d", len(exp))
 	}
 	target, ok := exp[0].(Symbol)
 	if !ok {
-		return errors.New("set! requires a variable")
+		return errors.New("set! requires a variable name")
 	}
 	for _, j := range (*env).env {
 		_, a := j[target.content]
@@ -483,7 +642,7 @@ func evalAssignment(exp []Expr, env *Environment) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("unbounded variable: %s", target.content)
+	return fmt.Errorf("unbound variable: %s", target.Print())
 }
 
 func definitionVariable(exp []Expr) (Symbol, error) {
@@ -495,15 +654,15 @@ func definitionVariable(exp []Expr) (Symbol, error) {
 		case Symbol:
 			return y, nil
 		default:
-			return Symbol{}, errors.New("definition should start with a literal")
+			return Symbol{}, errors.New("define: the name of a procedure definition must be a symbol")
 		}
 	default:
-		return Symbol{}, errors.New("Wrong type of definition object")
+		return Symbol{}, errors.New("define: invalid definition")
 	}
 }
 
 func makeLambda(par []Expr, body []Expr) List {
-	return List{args: append([]Expr{Symbol{content: "lambda"}, List{args: par}}, body...)}
+	return List{append([]Expr{Symbol{"lambda"}, List{par}}, body...)}
 }
 
 func definitionValue(exp []Expr) Expr {
@@ -522,6 +681,9 @@ func evalDefinition(exp []Expr, env *Environment) error {
 		return err
 	}
 	val, err := Eval(definitionValue(exp), env)
+	if err != nil {
+		return err
+	}
 	(*env).env[0][res.content] = val
 	return nil
 }
@@ -533,7 +695,7 @@ func sequenceToExp(exp []Expr) Expr {
 	case 1:
 		return exp[0]
 	default:
-		return List{args: append([]Expr{Symbol{content: "begin"}}, exp...)}
+		return List{append([]Expr{Symbol{"begin"}}, exp...)}
 	}
 }
 
@@ -544,7 +706,7 @@ func splitVarVal(exp []Expr) ([]Expr, []Expr, error) {
 		switch j := i.(type) {
 		case List:
 			if len(j.args) != 2 {
-				return nil, nil, errors.New("Wrong numbers of arguments in let")
+				return nil, nil, errors.New("let: each binding must be a (name value) pair")
 			}
 			values = append(values, j.args[1])
 			switch k := j.args[0].(type) {
@@ -553,7 +715,7 @@ func splitVarVal(exp []Expr) ([]Expr, []Expr, error) {
 				continue
 			}
 		default:
-			return nil, nil, errors.New("assigment with wrong type")
+			return nil, nil, errors.New("let: binding must be a list of (name value)")
 		}
 	}
 	return variables, values, nil
@@ -561,7 +723,7 @@ func splitVarVal(exp []Expr) ([]Expr, []Expr, error) {
 
 func evalLet(exp []Expr, env *Environment) (Expr, error) {
 	if len(exp) <= 1 {
-		return nil, errors.New("let command syntax error, need at least 3 indexes")
+		return nil, errors.New("let: expected (let <bindings> <body>...)")
 	}
 	switch x := exp[0].(type) {
 	case Symbol:
@@ -572,44 +734,44 @@ func evalLet(exp []Expr, env *Environment) (Expr, error) {
 			if err != nil {
 				return nil, err
 			}
-			function := List{args: append([]Expr{Symbol{content: "define"},
-				List{args: append([]Expr{x}, variables...)}}, exp[2:]...)}
-			procedure := sequenceToExp([]Expr{function, List{args: append([]Expr{x}, values...)}})
+			function := List{append([]Expr{Symbol{"define"},
+				List{append([]Expr{x}, variables...)}}, exp[2:]...)}
+			procedure := sequenceToExp([]Expr{function, List{append([]Expr{x}, values...)}})
 			new_env, err := env.extend_environment([]Expr{}, []Expr{})
 			return Eval(procedure, &new_env)
 		}
-		return nil, errors.New("syntax error in let")
+		return nil, errors.New("let: expected a list of bindings")
 	case List:
 		variables, values, err := splitVarVal(x.args)
 		if err != nil {
 			return nil, err
 		}
-		lambda := List{args: append(
-			[]Expr{List{args: append(
-				[]Expr{Symbol{content: "lambda"},
-					List{args: variables}},
+		lambda := List{append(
+			[]Expr{List{append(
+				[]Expr{Symbol{"lambda"},
+					List{variables}},
 				exp[1:]...)}},
 			values...)}
 		return Eval(lambda, env)
 	default:
-		return nil, errors.New("assignemnt syntax error")
+		return nil, errors.New("let: bindings must be a list")
 	}
 }
 
 func letStripStar(exps []Expr) (Expr, error) {
 	ass := exps[0].(List)
 	if len(ass.args) == 0 {
-		return List{args: append([]Expr{Symbol{content: "begin"}}, exps[1:]...)}, nil
+		return List{append([]Expr{Symbol{"begin"}}, exps[1:]...)}, nil
 	}
 	rest, err := letStripStar(append([]Expr{
-		List{args: ass.args[1:]}},
+		List{ass.args[1:]}},
 		exps[1:]...))
 	if err != nil {
 		return nil, err
 	}
-	return List{args: []Expr{
-		Symbol{content: "let"},
-		List{args: []Expr{List{args: ass.args[0].(List).args}}},
+	return List{[]Expr{
+		Symbol{"let"},
+		List{[]Expr{List{ass.args[0].(List).args}}},
 		rest}}, nil
 }
 
@@ -630,12 +792,12 @@ func evalTrue(exp Expr) (bool, error) {
 	case List:
 		return !(len(x.args) == 0), nil
 	}
-	return false, errors.New("not valid expr")
+	return false, fmt.Errorf("cannot use %s as a boolean", exp.Print())
 }
 
 func evalIf(exp []Expr, env *Environment) (Expr, error) {
 	if len(exp) != 3 {
-		return nil, fmt.Errorf("wrong number of args to call if, need 3, get %d", len(exp))
+		return nil, fmt.Errorf("wrong number of arguments of if, need 3, get %d", len(exp))
 	}
 	condition, err := Eval(exp[0], env)
 	if err != nil {
@@ -654,7 +816,7 @@ func evalIf(exp []Expr, env *Environment) (Expr, error) {
 
 func evalOr(exp []Expr, env *Environment) (Expr, error) {
 	if len(exp) == 0 {
-		return nil, errors.New("No argument to or")
+		return nil, errors.New("or expects at least one argument")
 	}
 	for _, e := range exp {
 		res, err := Eval(e, env)
@@ -666,15 +828,15 @@ func evalOr(exp []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 		if r {
-			return Symbol{content: "true"}, nil
+			return Symbol{"true"}, nil
 		}
 	}
-	return Symbol{content: "false"}, nil
+	return Symbol{"false"}, nil
 }
 
 func evalAnd(exp []Expr, env *Environment) (Expr, error) {
 	if len(exp) == 0 {
-		return nil, errors.New("No argument to and")
+		return nil, errors.New("and expects at least one argument")
 	}
 	for _, e := range exp {
 		res, err := Eval(e, env)
@@ -686,19 +848,20 @@ func evalAnd(exp []Expr, env *Environment) (Expr, error) {
 			return nil, err
 		}
 		if !r {
-			return Symbol{content: "false"}, nil
+			return Symbol{"false"}, nil
 		}
 	}
-	return Symbol{content: "true"}, nil
+	return Symbol{"true"}, nil
 }
 
 func makeProcedure(par Expr, body []Expr, env *Environment) (Expr, error) {
 	if p, ok := par.(List); ok {
-		return List{args: []Expr{
-			Symbol{content: "procedure"},
-			p, List{args: body}, env}}, nil
+		return List{[]Expr{
+			Symbol{"procedure"},
+			Procedure{body, p.args, env},
+		}}, nil
 	}
-	return nil, errors.New("makeProcedure expression format error")
+	return nil, errors.New("makeProcedure: expected a list of parameters")
 }
 
 func EvalSequence(exprs []Expr, env *Environment) (Expr, error) {
@@ -726,7 +889,7 @@ func evalCond(exps []Expr, env *Environment) (Expr, error) {
 
 func condToIf(exps []Expr) (Expr, error) {
 	if len(exps) == 0 {
-		return Symbol{content: "false"}, nil
+		return Symbol{"false"}, nil
 	}
 	switch j := exps[0].(type) {
 	case List:
@@ -736,33 +899,30 @@ func condToIf(exps []Expr) (Expr, error) {
 				if err != nil {
 					return nil, err
 				}
-				return List{args: []Expr{Symbol{content: "let"},
-					List{args: []Expr{
-						List{args: []Expr{Symbol{content: "value"}, s}}}},
-					List{args: []Expr{
-						Symbol{content: "if"}, Symbol{content: "value"},
-						List{args: []Expr{j.args[2], Symbol{content: "value"}}},
+				return List{[]Expr{Symbol{"let"},
+					List{[]Expr{
+						List{[]Expr{Symbol{"value"}, s}}}},
+					List{[]Expr{
+						Symbol{"if"}, Symbol{"value"},
+						List{[]Expr{j.args[2], Symbol{"value"}}},
 						res,
 					}}}}, nil
 			}
 		}
 		if k, ok := j.args[0].(Symbol); ok && k.content == "else" {
-			if k.content == "else" {
-				if 1 != len(exps) {
-					return nil, errors.New("ELSE case is not the last in CNOD")
-				}
-				return sequenceToExp(j.args[1:]), nil
+			if 1 != len(exps) {
+				return nil, errors.New("cond: the else clause must be the last one")
 			}
-
+			return sequenceToExp(j.args[1:]), nil
 		}
 		res, err := condToIf(exps[1:])
 		if err != nil {
 			return nil, err
 		}
-		return List{args: []Expr{Symbol{content: "if"}, j.args[0],
+		return List{[]Expr{Symbol{"if"}, j.args[0],
 			sequenceToExp(j.args[1:]), res}}, nil
 	default:
-		return nil, errors.New("Wrong type for condition")
+		return nil, errors.New("cond: each clause must be a list")
 	}
 }
 
@@ -770,7 +930,7 @@ func primitiveApply(proc List, args []Expr) (Expr, error) {
 	if p, ok := proc.args[1].(Action); ok {
 		return p.f(args)
 	}
-	return nil, errors.New("Wrong type for primitive procedure")
+	return nil, errors.New("malformed primitive procedure")
 }
 
 func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
@@ -784,15 +944,13 @@ func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
 				}
 				return primitiveApply(pro, a)
 			case "procedure":
-				if old_env, ok := pro.args[3].(*Environment); ok {
-					procedure_body := pro.args[2].(List).args
-					procedure_para := pro.args[1].(List).args
+				if p, ok := pro.args[1].(Procedure); ok {
 					a := listOfDelayedArgs(args, env)
-					new_env, err := old_env.extend_environment(procedure_para, a)
+					new_env, err := p.env.extend_environment(p.parameters, a)
 					if err != nil {
 						return nil, err
 					}
-					return EvalSequence(procedure_body, &new_env)
+					return EvalSequence(p.body, &new_env)
 				}
 			case "macro":
 				macro := pro.args[1].(Macro)
@@ -805,8 +963,7 @@ func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
 			}
 		}
 	}
-	fmt.Println(proc)
-	return nil, errors.New("invalid procedure")
+	return nil, fmt.Errorf("invalid procedure: %s", proc.Print())
 }
 
 func evalApply(exps []Expr, env *Environment) (Expr, error) {
@@ -817,8 +974,8 @@ func evalApply(exps []Expr, env *Environment) (Expr, error) {
 	return apply(procedure, exps[1:], env)
 }
 
-func delayIt(exps Expr, env *Environment) Expr {
-	return &List{args: append([]Expr{Symbol{content: "thunk"}}, exps, env)}
+func delayIt(exps Expr, env *Environment) *Thunk {
+	return &Thunk{true, exps, env}
 }
 
 func listOfDelayedArgs(exps []Expr, env *Environment) []Expr {
@@ -841,21 +998,18 @@ func listOfArgValues(exps []Expr, env *Environment) ([]Expr, error) {
 	return res, nil
 }
 
-func forceIt(obj *List) (Expr, error) {
-	if x, ok := obj.args[0].(Symbol); ok {
-		switch x.content {
-		case "thunk":
-			result, err := actualValue(obj.args[1], obj.args[2].(*Environment))
-			if err != nil {
-				return nil, err
-			}
-			obj.args = []Expr{Symbol{content: "evaluated-thunk"}, result, nil}
-			return result, nil
-		case "evaluated-thunk":
-			return obj.args[1], nil
+func forceIt(obj *Thunk) (Expr, error) {
+	if obj.thunk {
+		result, err := actualValue(obj.exp, obj.env)
+		if err != nil {
+			return nil, err
 		}
+		obj.thunk = false
+		obj.exp = result
+		obj.env = nil
+		return result, nil
 	}
-	return obj, nil
+	return obj.exp, nil
 }
 
 func actualValue(exp Expr, env *Environment) (Expr, error) {
@@ -863,40 +1017,74 @@ func actualValue(exp Expr, env *Environment) (Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if l, ok := res.(*List); ok {
+	if l, ok := res.(*Thunk); ok {
 		return forceIt(l)
 	}
 	return res, nil
 }
 
 func evalMap(args []Expr, env *Environment) (Expr, error) {
-	proc := args[0]
-	xs, err := Eval(args[1], env)
+	proc, err := actualValue(args[0], env)
+	if err != nil {
+		return nil, err
+	}
+	xs, err := actualValue(args[1], env)
 	if err != nil {
 		return nil, err
 	}
 	l := xs.(List).args
 	res := make([]Expr, len(l))
 	for i, k := range l {
-		r, err := apply(proc, []Expr{k}, env)
+		r, err := apply(proc, []Expr{&Thunk{false, k, nil}}, env)
 		if err != nil {
 			return nil, err
 		}
 		res[i] = r
 	}
-	return List{args: res}, nil
+	return List{res}, nil
+}
+
+func evalForEach(args []Expr, env *Environment) (Expr, error) {
+	proc, err := actualValue(args[0], env)
+	if err != nil {
+		return nil, err
+	}
+	x := [][]Expr{}
+	for _, xst := range args[1:] {
+		xs, err := actualValue(xst, env)
+		if err != nil {
+			return nil, err
+		}
+		l := xs.(List).args
+		x = append(x, l)
+	}
+	l := len(x[0])
+	le := len(x)
+	res := make([]Expr, le)
+	for k := range l {
+		for i := range le {
+			res[i] = &Thunk{false, x[i][k], nil}
+		}
+		if _, err := apply(proc, res, env); err != nil {
+			return nil, err
+		}
+	}
+	return nil, nil
 }
 
 func evalFilter(args []Expr, env *Environment) (Expr, error) {
-	proc := args[0]
-	xs, err := Eval(args[1], env)
+	proc, err := actualValue(args[0], env)
+	if err != nil {
+		return nil, err
+	}
+	xs, err := actualValue(args[1], env)
 	if err != nil {
 		return nil, err
 	}
 	l := xs.(List).args
 	res := []Expr{}
 	for _, k := range l {
-		r, err := apply(proc, []Expr{k}, env)
+		r, err := apply(proc, []Expr{&Thunk{false, k, nil}}, env)
 		if err != nil {
 			return nil, err
 		}
@@ -908,30 +1096,76 @@ func evalFilter(args []Expr, env *Environment) (Expr, error) {
 			res = append(res, k)
 		}
 	}
-	return List{args: res}, nil
+	return List{res}, nil
 }
 
 func evalFold(args []Expr, env *Environment) (Expr, error) {
 	if len(args) != 3 {
-		return nil, errors.New("wrong number of arguments, need 3")
+		return nil, fmt.Errorf("wrong number of arguments of fold, need 3, get %d", len(args))
 	}
-	proc := args[0]
-	init, err := Eval(args[1], env)
+	proc, err := actualValue(args[0], env)
 	if err != nil {
 		return nil, err
 	}
-	plist, err := Eval(args[2], env)
-	if list, ok := plist.(List); ok {
-		for _, k := range list.args {
-			action := List{args: []Expr{proc, init, k}}
-			init, err = Eval(action, env)
+	init, err := actualValue(args[1], env)
+	if err != nil {
+		return nil, err
+	}
+	plist, err := actualValue(args[2], env)
+	if err != nil {
+		return nil, err
+	}
+	list, ok := plist.(List)
+	if !ok {
+		return nil, fmt.Errorf("fold expects a list as its third argument, got %T", plist)
+	}
+	for _, k := range list.args {
+		init, err = apply(proc, []Expr{&Thunk{false, init, nil}, &Thunk{false, k, nil}}, env)
+		if err != nil {
+			return nil, err
+		}
+		for {
+			t, ok := init.(*Thunk)
+			if !ok {
+				break
+			}
+			init, err = forceIt(t)
 			if err != nil {
 				return nil, err
 			}
 		}
-		return init, nil
 	}
-	return nil, errors.New("fold can only process list")
+	return init, nil
+}
+
+func evalFuncApply(args []Expr, env *Environment) (Expr, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("wrong number of arguments of apply, need at least 2, get %d", len(args))
+	}
+	proc, err := actualValue(args[0], env)
+	if err != nil {
+		return nil, err
+	}
+	argList, err := actualValue(args[len(args)-1], env)
+	if err != nil {
+		return nil, err
+	}
+	lst, ok := argList.(List)
+	if !ok {
+		return nil, fmt.Errorf("apply expects a list as its last argument, got %T", argList)
+	}
+	callArgs := make([]Expr, 0, len(args)-2+len(lst.args))
+	for _, e := range args[1 : len(args)-1] {
+		v, err := actualValue(e, env)
+		if err != nil {
+			return nil, err
+		}
+		callArgs = append(callArgs, &Thunk{false, v, nil})
+	}
+	for _, e := range lst.args {
+		callArgs = append(callArgs, &Thunk{false, e, nil})
+	}
+	return apply(proc, callArgs, env)
 }
 
 func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
@@ -947,7 +1181,7 @@ func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
 				if err != nil {
 					return nil, err
 				}
-				return List{args: []Expr{Symbol{content: "quasiquote"}, inner}}, nil
+				return List{[]Expr{Symbol{"quasiquote"}, inner}}, nil
 			case "unquote":
 				if len(t.args) < 2 {
 					return nil, errors.New("unquote requires an argument")
@@ -959,7 +1193,7 @@ func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
 				if err != nil {
 					return nil, err
 				}
-				return List{args: []Expr{Symbol{content: "unquote"}, inner}}, nil
+				return List{[]Expr{Symbol{"unquote"}, inner}}, nil
 			case "unquote-splicing":
 				if len(t.args) < 2 {
 					return nil, errors.New("unquote-splicing requires an argument")
@@ -973,13 +1207,13 @@ func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
 					if !ok {
 						return nil, fmt.Errorf("unquote-splicing requires a list, got %s", val.Print())
 					}
-					return &splice{args: lv.args}, nil
+					return &splice{lv.args}, nil
 				}
 				inner, err := evalQuasi(t.args[1], depth-1, env)
 				if err != nil {
 					return nil, err
 				}
-				return List{args: []Expr{Symbol{content: "unquote-splicing"}, inner}}, nil
+				return List{[]Expr{Symbol{"unquote-splicing"}, inner}}, nil
 			}
 		}
 		out := []Expr{}
@@ -994,7 +1228,7 @@ func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
 				out = append(out, r)
 			}
 		}
-		return List{args: out}, nil
+		return List{out}, nil
 	default:
 		return e, nil
 	}
@@ -1004,8 +1238,8 @@ func evalDefMacro(args []Expr, env *Environment) (Expr, error) {
 	macro_Name := args[0].(Symbol)
 	para := args[1].(List)
 	body := args[2:]
-	macro := Macro{name: macro_Name.content, para: para.args, body: body, defEnv: env}
-	(*env).env[0][macro_Name.content] = List{args: []Expr{Symbol{content: "macro"}, macro}}
+	macro := Macro{macro_Name.content, para.args, body, env}
+	(*env).env[0][macro_Name.content] = List{[]Expr{Symbol{"macro"}, macro}}
 	return macro, nil
 }
 
@@ -1016,11 +1250,22 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 	switch x := exp.(type) {
 	case Number, String:
 		return x, nil
+	case *Thunk:
+		return x, nil
 	case Symbol:
-		return lookUpVariable(x, env)
+		if v, err := lookUpVariable(x, env); err == nil {
+			return v, nil
+		}
+		if isKeyword(x.content) {
+			return x, nil
+		}
+		return nil, fmt.Errorf("unbound variable: %s", x.Print())
 	case List:
 		switch y := x.args[0].(type) {
 		case Symbol:
+			if _, err := lookUpVariable(y, env); err == nil {
+				return evalApply(x.args, env)
+			}
 			switch y.content {
 			case "quote":
 				return x.args[1], nil
@@ -1034,9 +1279,9 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 				}
 				return res, nil
 			case "set!":
-				return Symbol{content: "ok"}, evalAssignment(x.args[1:], env)
+				return Symbol{"ok"}, evalAssignment(x.args[1:], env)
 			case "define":
-				return Symbol{content: "ok"}, evalDefinition(x.args[1:], env)
+				return Symbol{"ok"}, evalDefinition(x.args[1:], env)
 			case "let":
 				return evalLet(x.args[1:], env)
 			case "let*":
@@ -1055,6 +1300,8 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 				return evalDefMacro(x.args[1:], env)
 			case "map":
 				return evalMap(x.args[1:], env)
+			case "for-each":
+				return evalForEach(x.args[1:], env)
 			case "filter":
 				return evalFilter(x.args[1:], env)
 			case "fold":
@@ -1063,6 +1310,8 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 				return evalCond(x.args[1:], env)
 			case "eval":
 				return Eval(x.args[1], env)
+			case "apply":
+				return evalFuncApply(x.args[1:], env)
 			default:
 				return evalApply(x.args, env)
 			}
@@ -1072,6 +1321,6 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 			return nil, fmt.Errorf("not a procedure: %v", y)
 		}
 	default:
-		panic("not implemented yet")
+		panic(fmt.Sprintf("not implemented yet: %T", exp))
 	}
 }

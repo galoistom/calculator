@@ -1,4 +1,4 @@
-(define (eval exp env)
+(define (my-eval exp env)
   (cond ((self-evaluating? exp) exp)
         ((variable? exp) (lookup-variable-value exp env))
         ((quoted? exp) (text-of-quotation exp))
@@ -13,7 +13,7 @@
         ((begin? exp)
          (eval-sequence (begin-actions exp) env))
         ((cond? exp)
-         (eval (cond->if exp) env))
+         (my-eval (cond->if exp) env))
         ((application? exp)
          (my-apply (actual-value (car exp) env)
                 (cdr exp) env))
@@ -32,8 +32,7 @@
            (list-of-delayed-args arguments env)
            (procedure-environment procedure))))
         (else
-         (error
-          "Unknown procedure type - APPLY" procedure))))
+         (error "Unknown procedure type - APPLY" procedure))))
 
 (define (delay-it exp env) (list 'thunk exp env))
 
@@ -64,7 +63,7 @@
         (else obj)))
 
 (define (actual-value exp env)
-  (force-it (eval exp env)))
+  (force-it (my-eval exp env)))
 
 (define (eval-and exps env)
   (define (iter exp)
@@ -92,14 +91,14 @@
              (assignments (cadr exp))
              (actions (caddr exp))
              (variables (map car assignments))
-             (values (map (lambda (x) (eval (cadr x) env)) assignments))
+             (values (map (lambda (x) (my-eval (cadr x) env)) assignments))
              (function (list 'define (cons name variables) actions))
              (procedures (sequence->exp (list function (cons name values)))))
         (eval (list 'begin procedures) env))
       (let* ((assignments (car exp))
              (actions (cdr exp))
              (variables (map car assignments))
-             (values (map (lambda (x) (eval (cadr x) env)) assignments))
+             (values (map (lambda (x) (my-eval (cadr x) env)) assignments))
              (new-env (extend-environment variables values env)))
         (eval (sequence->exp actions) new-env))))
 
@@ -144,8 +143,8 @@
         (else (cons 'begin seq))))
 
 (define (eval-sequence exp env)
-  (cond ((null? (cdr exp)) (eval (car exp) env))
-        (else (eval (car exp) env)
+  (cond ((null? (cdr exp)) (my-eval (car exp) env))
+        (else (my-eval (car exp) env)
               (eval-sequence (cdr exp) env))))
 
 (define (begin? exp) (tagged-list? exp 'begin))
@@ -157,8 +156,8 @@
 
 (define (eval-if exp env)
   (if (actual-value (cadr exp) env)
-      (eval (caddr exp) env)
-      (eval (if (null? (cdddr exp)) false (cadddr exp)) env)))
+      (my-eval (caddr exp) env)
+      (my-eval (if (null? (cdddr exp)) false (cadddr exp)) env)))
 
 (define (make-if pre con alt)
   (list 'if pre con alt))
@@ -166,7 +165,7 @@
 (define (if? exp) (tagged-list? exp 'if))
 (define (eval-definition exp env)
   (define-variable! (definition-valriable exp)
-    (eval (definition-value exp) env)
+    (my-eval (definition-value exp) env)
     env)
   'ok)
 (define (definition-value exp)
@@ -180,7 +179,7 @@
 (define (definition? exp) (tagged-list? exp 'define))
 
 (define (eval-assignment exp env)
-  (set-valiable-value! (car exp) (eval (cadr exp) env) env))
+  (set-valiable-value! (car exp) (my-eval (cadr exp) env) env))
 
 (define (assignment? exp) (tagged-list? exp 'set!))
 
@@ -231,8 +230,10 @@
   (define (env-loop env)
     (if (null? env)
         (error "Unbounded variable" var)
-        (hash-ref (car env) var
-                  (lambda () (env-loop (cdr env))))))
+        (let ((val (hash-ref (car env) var)))
+          (if (null? val)
+              (env-loop (cdr env))
+              val))))
   (env-loop env))
 
 (define (set-valiable-value! var val env)
@@ -243,7 +244,7 @@
       (else (env-loop (cdr env)))))
   (env-loop env))
 
-(define apply-in-underlying-scheme apply)
+;; (define apply-in-underlying-scheme 'apply)
 
 
 (define (comound-procedure? p)
@@ -252,8 +253,7 @@
 (define (primitive-procedure? proc) (tagged-list? proc 'primitive))
 
 (define (apply-primitive-procedure proc args)
-  (apply-in-underlying-scheme
-   (primitive-implementation proc) args))
+  (apply (cadr proc) args))
 
 (define (setup-environment)
   (let ((initial-env (extend-environment (map car primitive-procedure)
@@ -267,10 +267,8 @@
   (map (lambda (proc) (list 'primitive (cadr proc)))
        primitive-procedure))
 
-(define (primitive-implementation proc) (cadr proc))
-
 (define primitive-procedure
-  (list (list 'car car)
+ (list (list 'car car)
         (list 'cdr cdr)
         (list 'cadr cadr)
         (list 'cons cons)
@@ -285,14 +283,14 @@
         (list '> >)
         (list 'list list)
         (list 'eq? eq?)
-        (list 'assoc assoc)
         (list 'display display)
-        (list 'exit exit)
-        (list 'newline newline)))
+        (list 'newline newline)
+        (list 'exit exit)))
+
 
 (define (driver-loop)
-  (let ((input (readline)))
-    (let ((output (eval input the-global-environment)))
+  (let ((input (readline-raw)))
+    (let ((output (my-eval input the-global-environment)))
       (user-print output)))
   (driver-loop))
 
@@ -316,4 +314,5 @@
 (define the-global-environment (setup-environment))
 
 (display "a small scheme interpreter running on scheme")
+;; (display the-global-environment)
 (driver-loop)
