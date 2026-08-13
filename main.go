@@ -1,3 +1,5 @@
+//go:build !js || !wasm
+
 package main
 
 import (
@@ -5,69 +7,16 @@ import (
 	"os"
 )
 
-var environment *Environment
-var show bool
-
-func Process(code string) (Expr, error) {
-	l := Lexer{input: code}
-	p := Parser{tokens: l.GetToken(), position: 0}
-	exp, err := p.ParseSequence()
-	if err != nil {
-		return nil, err
-	}
-	res, err := EvalSequence(exp, environment)
-	if err != nil {
-		return nil, err
-	}
-	if l, ok := res.(*Thunk); ok {
-		res, err = forceIt(l)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if res != nil && show {
-		fmt.Println(res.Print())
-	}
-
-	return res, nil
-}
-
-func ReadFile(path string) (string, error) {
-	file, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Println(err)
-		return "", err
-	}
-	return string(file), nil
-}
-
 func main() {
-	input := ""
 	show = true
 	var err error
-	switch os.Args[1] {
-	case "--help", "-h":
-		fmt.Println("usage: calculator [option] <code>\n",
-			"        -r/--repl to enter repl\n",
-			"        -f/--file to read code from file\n",
-			"        -e/--eval to read from arguments")
-		return
-	case "--file", "-f":
-		filepath := os.Args[2]
-		input, err = ReadFile(filepath)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		show = false
-	case "--eval", "-e":
-		input = os.Args[2]
-	case "--repl", "-r":
-		input = "(display \"type 'exit to exit\") (define (foldr func init l) (if (null? l) init (func (car l) (foldr func init (cdr l))))) (let loop () (let ((x (readline))) (if (eq? x 'exit) (display \"good bye!\")(loop))))"
-	}
 	environment, err = InitEnvironment()
 	if err != nil {
 		fmt.Println(err)
+		return
+	}
+	input := getExpression()
+	if input == "" {
 		return
 	}
 	_, err = Process(input)
@@ -75,4 +24,30 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+}
+
+func getExpression() string {
+	input := ""
+	var err error
+	switch os.Args[1] {
+	case "--help", "-h":
+		fmt.Println("usage: calculator [option] <code>\n",
+			"        -r/--repl to enter repl\n",
+			"        -f/--file to read code from file\n",
+			"        -e/--eval to read from arguments")
+		return ""
+	case "--file", "-f":
+		filepath := os.Args[2]
+		input, err = ReadFile(filepath)
+		if err != nil {
+			fmt.Println(err)
+			return ""
+		}
+		show = false
+	case "--eval", "-e":
+		input = os.Args[2]
+	case "--repl", "-r":
+		input = "(display \"type 'exit to exit\") (define (foldr func init l) (if (null? l) init (func (car l) (foldr func init (cdr l))))) (let loop () (let ((x (readline))) (if (eq? x 'exit) (display \"good bye!\")(loop))))"
+	}
+	return input
 }

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>calculator wasm</title>
+  <style>
+    body { font-family: monospace; margin: 2em; }
+    #out { white-space: pre-wrap; background: #eee; padding: 1em; min-height: 8em; }
+    #code { width: 100%; }
+  </style>
+</head>
+<body>
+  <h3>calculator (Scheme) running in wasm</h3>
+  <input id="code" value="(map (lambda (x) (* x x)) (list 1 2 3 4 5))">
+  <button id="run">eval</button>
+  <pre id="out"></pre>
+
+  <script src="wasm_exec.js"></script>
+  <script>
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("calc.wasm"), go.importObject)
+      .then((result) => {
+        go.run(result.instance);
+        document.getElementById("run").onclick = () => {
+          const code = document.getElementById("code").value;
+          const out = document.getElementById("out");
+          out.textContent += "> " + code + "\n" + calcEval(code) + "\n";
+        };
+        document.getElementById("run").click();
+      })
+      .catch(err => console.error(err));
+  </script>
+</body>
+</html>
