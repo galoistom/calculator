@@ -3,3 +3,4 @@
 *calculator
 *.scm
 *.wasm
+*.js
