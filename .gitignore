@@ -4,3 +4,4 @@
 *.scm
 *.wasm
 *.js
+*.html
