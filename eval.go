@@ -212,8 +212,25 @@ func InitEnvironment() (*Environment, error) {
 			f: func(args []Expr) (Expr, error) {
 				for _, i := range args {
 					if i != nil {
-						fmt.Println(Print(i))
+						fmt.Fprint(output, Print(i))
 					}
+				}
+				fmt.Fprintln(output)
+				return nil, nil
+			}},
+		"displayln": {name: "displayln",
+			f: func(args []Expr) (Expr, error) {
+				for _, i := range args {
+					if i != nil {
+						fmt.Fprintln(output, Print(i))
+					}
+				}
+				return nil, nil
+			}},
+		"format": {name: "format",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) ==1{
+					return String{Print(args[0])},nil
 				}
 				return nil, nil
 			}},
@@ -231,7 +248,7 @@ func InitEnvironment() (*Environment, error) {
 					if err != nil {
 						return nil, err
 					}
-					fmt.Printf("file %s loaded successfully\n", file)
+					fmt.Fprintf(output, "file %s loaded successfully\n", file)
 					return Process(code)
 				}
 				return nil, fmt.Errorf("wrong number of arguments of load, need 1, get %d", len(args))
@@ -247,7 +264,7 @@ func InitEnvironment() (*Environment, error) {
 			}},
 		"newline": {name: "newline",
 			f: func(args []Expr) (Expr, error) {
-				fmt.Println()
+				fmt.Fprintln(output)
 				return nil, nil
 			}},
 		"pair?": {name: "pair?",
@@ -382,13 +399,13 @@ func InitEnvironment() (*Environment, error) {
 		"readline": {name: "readline",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 0 {
-					fmt.Print("input:")
+					fmt.Fprint(output, "input:")
 					if inputScanner.Scan() {
 						line := inputScanner.Text()
 						return Process(line)
 					}
 					if err := inputScanner.Err(); err != nil {
-						fmt.Println("failed to read", err)
+						fmt.Fprintln(output, "failed to read", err)
 					}
 				}
 				return nil, fmt.Errorf("readline expects no arguments, got %d", len(args))
@@ -396,7 +413,7 @@ func InitEnvironment() (*Environment, error) {
 		"readline-raw": {name: "readline-raw",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 0 {
-					fmt.Print("input:")
+					fmt.Fprint(output, "input:")
 					if inputScanner.Scan() {
 						line := inputScanner.Text()
 						l := Lexer{input: line}
@@ -408,7 +425,7 @@ func InitEnvironment() (*Environment, error) {
 						return exp, nil
 					}
 					if err := inputScanner.Err(); err != nil {
-						fmt.Println("failed to read", err)
+						fmt.Fprintln(output, "failed to read", err)
 					}
 				}
 				return nil, fmt.Errorf("readline expects no arguments, got %d", len(args))

@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 )
 
 var environment *Environment
 var show bool
+var output io.Writer = os.Stdout
 
 func process(code string) (Expr, error) {
 	l := Lexer{input: code}
@@ -33,7 +35,9 @@ func Process(code string) (Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(Print(res))
+	if res!=nil{
+		fmt.Fprintln(output, Print(res))
+	}
 	return res, nil
 }
 

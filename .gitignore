@@ -5,3 +5,5 @@
 *.wasm
 *.js
 *.html
+static/
+TAGS

@@ -91,7 +91,22 @@ func (l *Lexer) getString() Token {
 			if l.position >= len(l.input) {
 				panic("unterminated string literal")
 			}
-			res.Value += string(l.input[l.position])
+			switch l.input[l.position] {
+			case 'n':
+				res.Value += "\n"
+			case 't':
+				res.Value += "\t"
+			case 'r':
+				res.Value += "\r"
+			case '\\':
+				res.Value += "\\"
+			case '"':
+				res.Value += "\""
+			case '\'':
+				res.Value += "'"
+			default:
+				res.Value += "\\" + string(l.input[l.position])
+			}
 			l.position++
 		default:
 			res.Value += string(ch)

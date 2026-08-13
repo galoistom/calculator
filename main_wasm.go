@@ -3,12 +3,23 @@
 package main
 
 import (
+	"bytes"
+	"strings"
 	"syscall/js"
 )
 
 var calcEval js.Func
+var stdoutBuf bytes.Buffer
+
+func getExpression() string {
+	if expr := js.Global().Get("expression"); !expr.IsUndefined() {
+		return expr.String()
+	}
+	return ""
+}
 
 func main() {
+	output = &stdoutBuf
 	var err error
 	environment, err = InitEnvironment()
 	if err != nil {
@@ -23,14 +34,28 @@ func main() {
 		if len(args) < 1 {
 			return "error: expected a code string"
 		}
+		stdoutBuf.Reset()
 		res, err := process(args[0].String())
+		printed := strings.TrimRight(stdoutBuf.String(), "\n")
+		stdoutBuf.Reset()
 		if err != nil {
+			if printed != "" {
+				return printed + "\nerror: " + err.Error()
+			}
 			return "error: " + err.Error()
 		}
-		if res == nil {
-			return ""
+		var result string
+		if res != nil {
+			result = Print(res)
 		}
-		return Print(res)
+		switch {
+		case printed != "" && result != "":
+			return printed + "\n" + result
+		case printed != "":
+			return printed
+		default:
+			return result
+		}
 	})
 	js.Global().Set("calcEval", calcEval)
 	<-make(chan struct{})
