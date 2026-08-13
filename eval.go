@@ -16,8 +16,8 @@ var keywords = map[string]bool{
 	"map": true, "for-each": true, "filter": true, "fold": true, "eval": true, "apply": true,
 }
 
-func isKeyword(name string) bool {
-	return keywords[name]
+func isKeyword(name Symbol) bool {
+	return keywords[name.content]
 }
 
 func make_frame(vars []Expr, vals []Expr) (frame, error) {
@@ -41,7 +41,8 @@ func (env Environment) extend_environment(vars []Expr, vals []Expr) (Environment
 		env.env = append([]frame{res}, env.env...)
 		return env, nil
 	}
-	return Environment{}, fmt.Errorf("extend_environment: number of variables (%d) does not match number of values (%d)", len(vars), len(vals))
+	return Environment{},
+		fmt.Errorf("extend_environment: number of variables (%d) does not match number of values (%d)", len(vars), len(vals))
 }
 
 func (Number) exprNode() {}
@@ -55,7 +56,7 @@ func (x stringNumber) getValue() (Number, error) {
 		if err != nil {
 			return Number{}, fmt.Errorf("failed to convert to float: %v", err)
 		}
-		return Number{value: Real(f)}, nil
+		return Number{Real(f)}, nil
 	}
 	if strings.Contains(num, "/") {
 		parts := strings.Split(num, "/")
@@ -71,7 +72,7 @@ func (x stringNumber) getValue() (Number, error) {
 		if err != nil {
 			return Number{}, err
 		}
-		return Number{value: Rational{p: int(p), q: int(q)}}, nil
+		return Number{Rational{p: int(p), q: int(q)}}, nil
 	}
 	i, err := strconv.Atoi(num)
 	if err != nil {
@@ -141,6 +142,13 @@ func (m Macro) Print() string {
 	return fmt.Sprintf("(Macro %s)", m.name)
 }
 
+func Print(e Expr) string{
+	if e ==nil{
+		return "Expr:nil"
+	}
+	return e.Print()
+}
+
 func InitEnvironment() (*Environment, error) {
 	env := Environment{[]frame{{
 		"true":  Symbol{"true"},
@@ -204,7 +212,7 @@ func InitEnvironment() (*Environment, error) {
 			f: func(args []Expr) (Expr, error) {
 				for _, i := range args {
 					if i != nil {
-						fmt.Println(i.Print())
+						fmt.Println(Print(i))
 					}
 				}
 				return nil, nil
@@ -233,7 +241,7 @@ func InitEnvironment() (*Environment, error) {
 				b := strings.Builder{}
 				b.WriteString("error:")
 				for _, a := range args {
-					fmt.Fprintf(&b, " %s", a.Print())
+					fmt.Fprintf(&b, " %s", Print(a))
 				}
 				return nil, errors.New(b.String())
 			}},
@@ -620,7 +628,7 @@ func lookUpVariable(exp Symbol, env *Environment) (Expr, error) {
 			return res, nil
 		}
 	}
-	return nil, fmt.Errorf("unbound variable: %s", exp.Print())
+	return nil, fmt.Errorf("unbound variable: %s", Print(exp))
 }
 
 func evalAssignment(exp []Expr, env *Environment) error {
@@ -642,7 +650,7 @@ func evalAssignment(exp []Expr, env *Environment) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("unbound variable: %s", target.Print())
+	return fmt.Errorf("unbound variable: %s", Print(target))
 }
 
 func definitionVariable(exp []Expr) (Symbol, error) {
@@ -792,7 +800,7 @@ func evalTrue(exp Expr) (bool, error) {
 	case List:
 		return !(len(x.args) == 0), nil
 	}
-	return false, fmt.Errorf("cannot use %s as a boolean", exp.Print())
+	return false, fmt.Errorf("cannot use %s as a boolean", Print(exp))
 }
 
 func evalIf(exp []Expr, env *Environment) (Expr, error) {
@@ -963,7 +971,7 @@ func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
 			}
 		}
 	}
-	return nil, fmt.Errorf("invalid procedure: %s", proc.Print())
+	return nil, fmt.Errorf("invalid procedure: %s", Print(proc))
 }
 
 func evalApply(exps []Expr, env *Environment) (Expr, error) {
@@ -1205,7 +1213,7 @@ func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
 					}
 					lv, ok := val.(List)
 					if !ok {
-						return nil, fmt.Errorf("unquote-splicing requires a list, got %s", val.Print())
+						return nil, fmt.Errorf("unquote-splicing requires a list, got %s", Print(val))
 					}
 					return &splice{lv.args}, nil
 				}
@@ -1235,11 +1243,11 @@ func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
 }
 
 func evalDefMacro(args []Expr, env *Environment) (Expr, error) {
-	macro_Name := args[0].(Symbol)
+	macro_Name := args[0].(Symbol).content
 	para := args[1].(List)
 	body := args[2:]
-	macro := Macro{macro_Name.content, para.args, body, env}
-	(*env).env[0][macro_Name.content] = List{[]Expr{Symbol{"macro"}, macro}}
+	macro := Macro{macro_Name, para.args, body, env}
+	env.env[0][macro_Name] = List{[]Expr{Symbol{"macro"}, macro}}
 	return macro, nil
 }
 
@@ -1256,10 +1264,10 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 		if v, err := lookUpVariable(x, env); err == nil {
 			return v, nil
 		}
-		if isKeyword(x.content) {
+		if isKeyword(x) {
 			return x, nil
 		}
-		return nil, fmt.Errorf("unbound variable: %s", x.Print())
+		return nil, fmt.Errorf("unbound variable: %s", Print(x))
 	case List:
 		switch y := x.args[0].(type) {
 		case Symbol:
