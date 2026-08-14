@@ -23,7 +23,8 @@ func main() {
 	var err error
 	environment, err = InitEnvironment()
 	if err != nil {
-		panic(err)
+		js.Global().Get("console").Call("error", "InitEnvironment failed: "+err.Error())
+		return
 	}
 	if input := getExpression(); input != "" {
 		if _, err := Process(input); err != nil {
@@ -57,6 +58,10 @@ func main() {
 			return result
 		}
 	})
+	onReady := js.Global().Get("onWasmReady")
+	if onReady.Truthy() {
+		onReady.Invoke()
+	}
 	js.Global().Set("calcEval", calcEval)
-	<-make(chan struct{})
+	select{}
 }
