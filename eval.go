@@ -225,7 +225,6 @@ func InitEnvironment() (*Environment, error) {
 						fmt.Fprint(output, Print(i))
 					}
 				}
-				fmt.Fprintln(output)
 				return nil, nil
 			}},
 		"displayln": {name: "displayln",
