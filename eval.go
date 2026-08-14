@@ -27,6 +27,7 @@ func make_frame(vars []Expr, vals []Expr) (frame, error) {
 		if j, ok := vars[i].(Symbol); ok {
 			res[j.content] = vals[i]
 		} else {
+			fmt.Println(vars[i].Print())
 			return nil, errors.New("frame should only contain symbols")
 		}
 	}
@@ -157,6 +158,7 @@ func Print(e Expr) string {
 
 func InitEnvironment() (*Environment, error) {
 	env := Environment{[]frame{{
+		"null":  nil,
 		"true":  Symbol{"true"},
 		"false": Symbol{"false"},
 		"Pi":    Number{Real(math.Pi)},
@@ -668,18 +670,18 @@ func InitEnvironment() (*Environment, error) {
 				return nil, fmt.Errorf("wrong number of arguments of ln, need 1, get %d", len(args))
 			}},
 		"exp": {name: "exp",
-			f:func(args []Expr) (Expr,error){
-				if len(args) ==1{
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
 					a := args[0].(Number).value
 					if a.Type() <= RealType {
 						t := Add(a, Real(0)).(Real)
-						return Number{Reduce(Real(math.Pow(math.E,float64(t))))}, nil
+						return Number{Reduce(Real(math.Pow(math.E, float64(t))))}, nil
 					} else {
 						za := a.(Complex).a
 						zb := a.(Complex).b
-						p := math.Pow(math.E,za) * math.Cos(zb)
-						q := math.Pow(math.E,za) * math.Sin(zb)
-						return Number{Reduce(Complex{p,q})},nil
+						p := math.Pow(math.E, za) * math.Cos(zb)
+						q := math.Pow(math.E, za) * math.Sin(zb)
+						return Number{Reduce(Complex{p, q})}, nil
 					}
 				}
 				return nil, fmt.Errorf("wrong number of arguments of exp, need 1, get %d", len(args))
@@ -872,7 +874,7 @@ func evalLet(exp []Expr, env *Environment) (Expr, error) {
 		ass := exp[1]
 		switch assignments := ass.(type) {
 		case List:
-			values, variables, err := splitVarVal(assignments.args)
+			variables, values, err := splitVarVal(assignments.args)
 			if err != nil {
 				return nil, err
 			}
@@ -890,8 +892,7 @@ func evalLet(exp []Expr, env *Environment) (Expr, error) {
 		}
 		lambda := List{append(
 			[]Expr{List{append(
-				[]Expr{Symbol{"lambda"},
-					List{variables}},
+				[]Expr{Symbol{"lambda"}, List{variables}},
 				exp[1:]...)}},
 			values...)}
 		return Eval(lambda, env)

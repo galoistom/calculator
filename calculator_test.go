@@ -444,6 +444,7 @@ func TestLetBindingsAreValuesNotReevaluated(t *testing.T) {
 	mustEval(t, "(let ((x (quote exit))) (eq? x (quote exit)))", "'true")
 	mustEval(t, "(let ((x (quote (1 2)))) (car x))", "1")
 	mustEval(t, "(let ((a 3) (b 4)) (+ a b))", "7")
+	mustEval(t, "(let loop ((x 5)) (if (< x 1) 0 (+ x (loop (- x 1)))))", "15")
 }
 
 func evalWithCounter(t *testing.T, code string, count *int) (string, error) {
