@@ -48,7 +48,7 @@ func (env Environment) extend_environment(vars []Expr, vals []Expr) (Environment
 
 func (Number) exprNode() {}
 func (n Number) Print() string {
-	return n.value.Print()
+	return Reduce(n.value).Print()
 }
 func (x stringNumber) getValue() (Number, error) {
 	num := x.Value
@@ -57,7 +57,7 @@ func (x stringNumber) getValue() (Number, error) {
 		if err != nil {
 			return Number{}, fmt.Errorf("failed to convert to float: %v", err)
 		}
-		return Number{Real(f)}, nil
+		return Number{Reduce(Real(f))}, nil
 	}
 	if strings.Contains(num, "/") {
 		parts := strings.Split(num, "/")
@@ -73,13 +73,18 @@ func (x stringNumber) getValue() (Number, error) {
 		if err != nil {
 			return Number{}, err
 		}
-		return Number{Rational{p: int(p), q: int(q)}}, nil
+		return Number{Reduce(Rational{p: int(p), q: int(q)})}, nil
 	}
 	i, err := strconv.Atoi(num)
 	if err != nil {
 		return Number{}, err
 	}
 	return Number{value: Integer(i)}, nil
+}
+
+func (String) exprNode() {}
+func (s String) Print() string {
+	return fmt.Sprintf("%s", s.content)
 }
 
 func (Symbol) exprNode() {}
@@ -470,11 +475,11 @@ func InitEnvironment() (*Environment, error) {
 				if len(args) == 2 {
 					a := args[0].(Number).value
 					b := args[1].(Number).value
-					return Number{value: Minu(a, b)}, nil
+					return Number{Minu(a, b)}, nil
 				}
 				if len(args) == 1 {
 					a := args[0].(Number).value
-					return Number{value: Minu(Integer(0), a)}, nil
+					return Number{Minu(Integer(0), a)}, nil
 				}
 				return nil, fmt.Errorf("wrong number of arguments of -, need 1 or 2, get %d", len(args))
 			}},
@@ -484,7 +489,7 @@ func InitEnvironment() (*Environment, error) {
 				for _, k := range args {
 					num = Times(k.(Number).value, num)
 				}
-				return Number{value: num}, nil
+				return Number{num}, nil
 			}},
 		"/": {name: "/",
 			f: func(args []Expr) (Expr, error) {
@@ -492,7 +497,7 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					res, err := Div(a, b)
-					return Number{value: res}, err
+					return Number{res}, err
 				}
 				return nil, fmt.Errorf("wrong number of arguments of /, need 2, get %d", len(args))
 			}},
@@ -581,7 +586,7 @@ func InitEnvironment() (*Environment, error) {
 					if !ok {
 						return nil, errors.New("pow with a non-integer exponent is not implemented yet")
 					}
-					return Number{value: Power(a, int(x))}, nil
+					return Number{Power(a, int(x))}, nil
 				}
 				return nil, fmt.Errorf("wrong number of arguments of pow, need 2, get %d", len(args))
 			}},
@@ -590,7 +595,7 @@ func InitEnvironment() (*Environment, error) {
 				if len(args) == 2 {
 					a := args[0].(Number).value
 					b := args[1].(Number).value
-					return Number{value: Add(a, Times(Complex{a: 0, b: 1}, b))}, nil
+					return Number{Add(a, Times(Complex{a: 0, b: 1}, b))}, nil
 				}
 				return nil, fmt.Errorf("wrong number of arguments of complex, need 2, get %d", len(args))
 			}},
@@ -598,7 +603,7 @@ func InitEnvironment() (*Environment, error) {
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
 					a := args[0].(Number).value
-					return Number{value: Abs(a)}, nil
+					return Number{Abs(a)}, nil
 				}
 				return nil, fmt.Errorf("wrong number of arguments of abs, need 1, get %d", len(args))
 			}},
@@ -608,7 +613,7 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					if a.Type() <= ComplexType {
 						t := Add(a, Real(0)).(Real)
-						return Number{Real(math.Sin(float64(t)))}, nil
+						return Number{Reduce(Real(math.Sin(float64(t))))}, nil
 					}
 					return nil, errors.New("complex sin not implemented")
 				}
@@ -620,7 +625,7 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					if a.Type() <= ComplexType {
 						t := Add(a, Real(0)).(Real)
-						return Number{Real(math.Asin(float64(t)))}, nil
+						return Number{Reduce(Real(math.Asin(float64(t))))}, nil
 					}
 					return nil, errors.New("complex sin not implemented")
 				}
@@ -632,7 +637,7 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					if a.Type() <= ComplexType {
 						t := Add(a, Real(0)).(Real)
-						return Number{Real(math.Cos(float64(t)))}, nil
+						return Number{Reduce(Real(math.Cos(float64(t))))}, nil
 					}
 					return nil, errors.New("complex cos not implemented")
 				}
@@ -644,7 +649,7 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					if a.Type() <= ComplexType {
 						t := Add(a, Real(0)).(Real)
-						return Number{Real(math.Acos(float64(t)))}, nil
+						return Number{Reduce(Real(math.Acos(float64(t))))}, nil
 					}
 					return nil, errors.New("complex cos not implemented")
 				}
@@ -656,7 +661,7 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					if a.Type() <= RealType {
 						t := Add(a, Real(0)).(Real)
-						return Number{Real(math.Log(float64(t)))}, nil
+						return Number{Reduce(Real(math.Log(float64(t))))}, nil
 					}
 					return nil, errors.New("complex cos not implemented")
 				}
@@ -668,13 +673,13 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					if a.Type() <= RealType {
 						t := Add(a, Real(0)).(Real)
-						return Number{Real(math.Pow(math.E,float64(t)))}, nil
+						return Number{Reduce(Real(math.Pow(math.E,float64(t))))}, nil
 					} else {
 						za := a.(Complex).a
 						zb := a.(Complex).b
 						p := math.Pow(math.E,za) * math.Cos(zb)
 						q := math.Pow(math.E,za) * math.Sin(zb)
-						return Number{Complex{p,q}},nil
+						return Number{Reduce(Complex{p,q})},nil
 					}
 				}
 				return nil, fmt.Errorf("wrong number of arguments of exp, need 1, get %d", len(args))

@@ -235,6 +235,7 @@ func (a Rational) Abs() Rational {
 }
 
 func (x Rational) Print() string {
+	x = x.simp()
 	if x.p%x.q == 0 {
 		return fmt.Sprintf("%d", x.p/x.q)
 	}
@@ -279,12 +280,14 @@ func (a Real) Abs() Real {
 }
 
 func (x Real) Print() string {
-	if math.Trunc(float64(x)) == float64(x) {
+	if float64(x) - math.Floor(float64(x)) < 0.00001{
 		return fmt.Sprintf("%d", int(x))
+	} else if float64(x) - math.Floor(float64(x)) > 0.99999{
+		return fmt.Sprintf("%d", int(x)+1)
 	}
-	return fmt.Sprintf("%f", x)
-}
+	return fmt.Sprintf("%g", x)
 
+}
 // Implementation of Complex
 type Complex struct {
 	a float64
@@ -344,20 +347,14 @@ func (x Complex) Abs() Real {
 }
 
 func (x Complex) Print() string {
-	if x.a == 0 {
-		return Real(x.b).Print()
-	} else if x.b == 0 {
+	if x.a < 0.00001 && x.a > -0.00001 {
+		return Real(x.b).Print()+"i"
+	} else if x.b < 0.00001 && x.b > -0.00001 {
 		return Real(x.a).Print()
 	} else if x.b < 0 {
-		return fmt.Sprintf("%f%fi", x.a, x.b)
+		return fmt.Sprintf("%s%si", Real(x.a).Print(), Real(x.b).Print())
 	}
-	return fmt.Sprintf("%f+%fi", x.a, x.b)
-}
-
-func (String) exprNode() {}
-
-func (s String) Print() string {
-	return fmt.Sprintf("%s", s.content)
+	return fmt.Sprintf("%s+%si", Real(x.a).Print(), Real(x.b).Print())
 }
 
 // Implement types
@@ -467,19 +464,19 @@ func Div(a Value, b Value) (Value, error) {
 	case Rational:
 		res, err := x.div(b.(Rational))
 		if err != nil {
-			return res, err
+			return nil, err
 		}
 		return res, nil
 	case Real:
 		res, err := x.div(b.(Real))
 		if err != nil {
-			return res, err
+			return nil, err
 		}
 		return res, nil
 	case Complex:
 		res, err := x.div(b.(Complex))
 		if err != nil {
-			return res, err
+			return nil, err
 		}
 		return res, nil
 	default:
@@ -498,6 +495,26 @@ func Int(a Value) (Integer, error) {
 	default:
 		panic(fmt.Sprintf("unsupported type: %T", a))
 	}
+}
+
+func Reduce(a Value) Value {
+	switch x := a.(type) {
+	case Complex:
+		if x.b < 0.0001 && x.b > -0.0001 {
+			return Reduce(Real(x.a))
+		}
+	case Real:
+		if float64(x) - math.Floor(float64(x)) < 0.00001{
+			return Integer(int(x))
+		} else if float64(x) - math.Floor(float64(x)) > 0.99999{
+			return Integer(int(x)+1)
+		}
+	case Rational:
+		if x.p % x.q ==0{
+			return Integer(int(x.p/x.q))
+		}
+	}
+	return a
 }
 
 func Abs(a Value) Value {
@@ -556,3 +573,4 @@ func IsZero(a Value) bool {
 		panic(fmt.Sprintf("unsupported type: %T", a))
 	}
 }
+
