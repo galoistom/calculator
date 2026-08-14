@@ -309,6 +309,11 @@ func TestEvalConditionals(t *testing.T) {
 	mustEval(t, "(and 0 2)", "'false")
 	mustEval(t, "(or 0 0)", "'false")
 	mustEval(t, "(or 0 3)", "'true")
+	mustEval(t, "(if (< 1 2) 1 0)", "1")
+	mustEval(t, "(if (< 2 2) 1 0)", "0")
+	mustEval(t, "(if (< 2 1) 1 0)", "0")
+	mustEval(t, "(if (> 2 1) 1 0)", "1")
+	mustEval(t, "(if (> 2 2) 1 0)", "0")
 }
 
 func TestEvalLambda(t *testing.T) {
@@ -399,6 +404,7 @@ func TestEvalMapFilter(t *testing.T) {
 	mustEval(t, "(map cdr (list (list 1 2) (list 3 4)))", "(listof (listof 2) (listof 4))")
 	mustEval(t, "(map (lambda (x) (+ x 1)) (list 1 2 3))", "(listof 2 3 4)")
 	mustEval(t, "(define (my-map f l) (map f l)) (my-map car (list (list 1 2) (list 3 4)))", "(listof 1 3)")
+	mustEval(t, "(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (map fib (list 1 2 3 4 5))", "(listof 1 1 2 3 5)")
 	mustEval(t, "(filter (lambda (x) (= x 1)) (list 1 2 1 3))", "(listof 1 1)")
 	mustEval(t, "(define total 0) (for-each (lambda (x) (set! total (+ total x))) (list 1 2 3)) total", "6")
 	mustEval(t, "(define total 0) (for-each (lambda (x) (set! total (* total x))) (list 1 2 3)) total", "0")

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -142,8 +143,8 @@ func (m Macro) Print() string {
 	return fmt.Sprintf("(Macro %s)", m.name)
 }
 
-func Print(e Expr) string{
-	if e ==nil{
+func Print(e Expr) string {
+	if e == nil {
 		return "Expr:nil"
 	}
 	return e.Print()
@@ -152,7 +153,9 @@ func Print(e Expr) string{
 func InitEnvironment() (*Environment, error) {
 	env := Environment{[]frame{{
 		"true":  Symbol{"true"},
-		"false": Symbol{"false"}}}}
+		"false": Symbol{"false"},
+		"Pi":    Number{Real(math.Pi)},
+		"E":     Number{Real(math.E)}}}}
 	vals := []Expr{}
 	vars := []Expr{}
 	var inputScanner = bufio.NewScanner(os.Stdin)
@@ -229,8 +232,8 @@ func InitEnvironment() (*Environment, error) {
 			}},
 		"format": {name: "format",
 			f: func(args []Expr) (Expr, error) {
-				if len(args) ==1{
-					return String{Print(args[0])},nil
+				if len(args) == 1 {
+					return String{Print(args[0])}, nil
 				}
 				return nil, nil
 			}},
@@ -511,10 +514,26 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					if a.Type() == ComplexType || b.Type() == ComplexType {
-						return nil, errors.New("comlex cannot conpare type")
+						return nil, errors.New("complex numbers cannot be compared with <")
 					}
 					res := Add(Real(0), Minu(a, b))
 					if res.(Real) < 0 {
+						return Symbol{"true"}, nil
+					}
+					return Symbol{"false"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of <, need 2, get %d", len(args))
+			}},
+		"<=": {name: "<=",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					if a.Type() == ComplexType || b.Type() == ComplexType {
+						return nil, errors.New("complex numbers cannot be compared with <")
+					}
+					res := Add(Real(0), Minu(a, b))
+					if res.(Real) <= 0 {
 						return Symbol{"true"}, nil
 					}
 					return Symbol{"false"}, nil
@@ -527,7 +546,7 @@ func InitEnvironment() (*Environment, error) {
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					if a.Type() == ComplexType || b.Type() == ComplexType {
-						return nil, errors.New("comlex cannot conpare type")
+						return nil, errors.New("complex numbers cannot be compared with >")
 					}
 					res := Add(Real(0), Minu(a, b))
 					if res.(Real) > 0 {
@@ -535,7 +554,23 @@ func InitEnvironment() (*Environment, error) {
 					}
 					return Symbol{"false"}, nil
 				}
-				return nil, fmt.Errorf("wrong number of arguments of <, need 2, get %d", len(args))
+				return nil, fmt.Errorf("wrong number of arguments of >, need 2, get %d", len(args))
+			}},
+		">=": {name: ">=",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a := args[0].(Number).value
+					b := args[1].(Number).value
+					if a.Type() == ComplexType || b.Type() == ComplexType {
+						return nil, errors.New("complex numbers cannot be compared with >")
+					}
+					res := Add(Real(0), Minu(a, b))
+					if res.(Real) >= 0 {
+						return Symbol{"true"}, nil
+					}
+					return Symbol{"false"}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of >, need 2, get %d", len(args))
 			}},
 		"pow": {name: "pow",
 			f: func(args []Expr) (Expr, error) {
@@ -557,7 +592,7 @@ func InitEnvironment() (*Environment, error) {
 					b := args[1].(Number).value
 					return Number{value: Add(a, Times(Complex{a: 0, b: 1}, b))}, nil
 				}
-				return nil, fmt.Errorf("wrong number of arguments of c, need 2, get %d", len(args))
+				return nil, fmt.Errorf("wrong number of arguments of complex, need 2, get %d", len(args))
 			}},
 		"abs": {name: "abs",
 			f: func(args []Expr) (Expr, error) {
@@ -566,6 +601,83 @@ func InitEnvironment() (*Environment, error) {
 					return Number{value: Abs(a)}, nil
 				}
 				return nil, fmt.Errorf("wrong number of arguments of abs, need 1, get %d", len(args))
+			}},
+		"sin": {name: "sin",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					a := args[0].(Number).value
+					if a.Type() <= ComplexType {
+						t := Add(a, Real(0)).(Real)
+						return Number{Real(math.Sin(float64(t)))}, nil
+					}
+					return nil, errors.New("complex sin not implemented")
+				}
+				return nil, fmt.Errorf("wrong number of arguments of sin, need 1, get %d", len(args))
+			}},
+		"arcsin": {name: "arcsin",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					a := args[0].(Number).value
+					if a.Type() <= ComplexType {
+						t := Add(a, Real(0)).(Real)
+						return Number{Real(math.Asin(float64(t)))}, nil
+					}
+					return nil, errors.New("complex sin not implemented")
+				}
+				return nil, fmt.Errorf("wrong number of arguments of arcsin, need 1, get %d", len(args))
+			}},
+		"cos": {name: "cos",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					a := args[0].(Number).value
+					if a.Type() <= ComplexType {
+						t := Add(a, Real(0)).(Real)
+						return Number{Real(math.Cos(float64(t)))}, nil
+					}
+					return nil, errors.New("complex cos not implemented")
+				}
+				return nil, fmt.Errorf("wrong number of arguments of cos, need 1, get %d", len(args))
+			}},
+		"arccos": {name: "arccos",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					a := args[0].(Number).value
+					if a.Type() <= ComplexType {
+						t := Add(a, Real(0)).(Real)
+						return Number{Real(math.Acos(float64(t)))}, nil
+					}
+					return nil, errors.New("complex cos not implemented")
+				}
+				return nil, fmt.Errorf("wrong number of arguments of arccos, need 1, get %d", len(args))
+			}},
+		"ln": {name: "ln",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 1 {
+					a := args[0].(Number).value
+					if a.Type() <= RealType {
+						t := Add(a, Real(0)).(Real)
+						return Number{Real(math.Log(float64(t)))}, nil
+					}
+					return nil, errors.New("complex cos not implemented")
+				}
+				return nil, fmt.Errorf("wrong number of arguments of ln, need 1, get %d", len(args))
+			}},
+		"exp": {name: "exp",
+			f:func(args []Expr) (Expr,error){
+				if len(args) ==1{
+					a := args[0].(Number).value
+					if a.Type() <= RealType {
+						t := Add(a, Real(0)).(Real)
+						return Number{Real(math.Pow(math.E,float64(t)))}, nil
+					} else {
+						za := a.(Complex).a
+						zb := a.(Complex).b
+						p := math.Pow(math.E,za) * math.Cos(zb)
+						q := math.Pow(math.E,za) * math.Sin(zb)
+						return Number{Complex{p,q}},nil
+					}
+				}
+				return nil, fmt.Errorf("wrong number of arguments of exp, need 1, get %d", len(args))
 			}},
 		"int": {name: "int",
 			f: func(args []Expr) (Expr, error) {
@@ -1064,6 +1176,16 @@ func evalMap(args []Expr, env *Environment) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
+		for {
+			t, ok := r.(*Thunk)
+			if !ok {
+				break
+			}
+			r, err = forceIt(t)
+			if err != nil {
+				return nil, err
+			}
+		}
 		res[i] = r
 	}
 	return List{res}, nil
@@ -1112,6 +1234,16 @@ func evalFilter(args []Expr, env *Environment) (Expr, error) {
 		r, err := apply(proc, []Expr{&Thunk{false, k, nil}}, env)
 		if err != nil {
 			return nil, err
+		}
+		for {
+			t, ok := r.(*Thunk)
+			if !ok {
+				break
+			}
+			r, err = forceIt(t)
+			if err != nil {
+				return nil, err
+			}
 		}
 		b, err := evalTrue(r)
 		if err != nil {
