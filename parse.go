@@ -55,7 +55,8 @@ func isLetter(ch byte) bool {
 		(ch >= 'A' && ch <= 'Z') ||
 		(ch == '_') || (ch == '!') ||
 		(ch == '=') || (ch == '<') ||
-		(ch == '>') || (ch == '?')
+		(ch == '>') || (ch == '?') ||
+		(ch == '&')
 }
 
 func isDigit(ch byte) bool {

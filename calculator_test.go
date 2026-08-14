@@ -370,8 +370,8 @@ func TestEvalQuasiquote(t *testing.T) {
 }
 
 func TestEvalDefMacro(t *testing.T) {
-	mustEval(t, "(defmacro unless (c then) `(if ,c 0 ,then)) (unless (= 1 1) 99)", "0")
-	mustEval(t, "(defmacro unless (c then) `(if ,c 0 ,then)) (unless (= 1 2) 99)", "99")
+	mustEval(t, "(defmacro u (c then) `(if ,c 0 ,then)) (u true 0)", "0")
+	mustEval(t, "(defmacro u (c then) `(if ,c 0 ,then)) (u false 1)", "1")
 	mustEval(t, "(defmacro m (x) `(+ ,x 1)) (m 41)", "42")
 	mustEval(t, "(defmacro m (x) `(* ,x ,x)) (m (+ 1 2))", "9")
 	mustEval(t, "(defmacro m (x) `(list ,x 0)) ((lambda (y) (m y)) 5)", "(listof 5 0)")
@@ -381,6 +381,29 @@ func TestEvalDefMacro(t *testing.T) {
 func TestEvalDefMacroHelperAtExpansionTime(t *testing.T) {
 	mustEval(t, "(define (build q) `(quote ,q)) (defmacro m (x) (build x)) (m 5)", "5")
 	mustEval(t, "(define (build q) `(quote ,q)) (defmacro m (x) (build x)) (m foo)", "'foo")
+}
+
+func TestEvalRestParameter(t *testing.T) {
+	mustEval(t, "((lambda (a &rest b) (+ a (length b))) 1 2 3 4)", "4")
+	mustEval(t, "((lambda (&rest xs) (length xs)) 1 2 3)", "3")
+	mustEval(t, "((lambda (&rest xs) (apply + xs)) 1 2 3)", "6")
+	mustEval(t, "((lambda (a &rest b) (apply + a b)) 1 2 3)", "6")
+	mustEval(t, "(define (foo a &rest b) (apply + a b)) (foo 1 2 3)", "6")
+	mustEval(t, "((lambda (a &rest b) (list a (length b))) 1 2 3)", "(listof 1 2)")
+	mustEval(t, "((lambda (&rest xs) (map (lambda (x) (* x x)) xs)) 1 2 3)", "(listof 1 4 9)")
+	mustEval(t, "((lambda (&rest xs) (fold + 0 xs)) 1 2 3)", "6")
+	mustEval(t, "((lambda (&rest xs) (length (filter (lambda (x) (= x 1)) xs))) 1 2 1 3)", "2")
+	mustEval(t, "((lambda (&rest b) 5) (/ 1 0))", "5")
+	mustError(t, "((lambda (a &rest b) b))", "too few arguments")
+	mustError(t, "((lambda (a &rest b c) b) 1 2)", "&rest must be followed")
+}
+
+func TestEvalDefMacroRest(t *testing.T) {
+	mustEval(t, "(defmacro m (x &rest y) `(list ,x ,@y)) (m 1 2 3)", "(listof 1 2 3)")
+	mustEval(t, "(defmacro unless (&rest clauses) `(cond ,@clauses)) (unless ((= 1 1) 42) ((= 2 2) 43))", "42")
+	mustEval(t, "(defmacro m (x &rest y) `(list ,x (quote ,y))) (m 1 2 3)", "(listof 1 (listof 2 3))")
+	mustEval(t, "(defmacro m (&rest y) `(list ,@y)) (m (+ 1 1) (* 2 2))", "(listof 2 4)")
+	mustEval(t, "(defmacro m (x &rest y) (list (quote list) x (cons (quote quote) (cons y (quote ()))))) (m 1 2 3)", "(listof 1 (listof 2 3))")
 }
 
 func TestEvalIdentityReturnsThunk(t *testing.T) {

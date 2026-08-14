@@ -48,7 +48,7 @@ func getExpression() string {
 	case "--eval", "-e":
 		input = os.Args[2]
 	case "--repl", "-r":
-		input = "(display \"type 'exit to exit\") (define (foldr func init l) (if (null? l) init (func (car l) (foldr func init (cdr l))))) (let loop () (let ((x (readline))) (if (eq? x 'exit) (display \"good bye!\")(loop))))"
+		input = "(displayln \"type 'exit to exit\") (define (foldr func init l) (if (null? l) init (func (car l) (foldr func init (cdr l))))) (let loop () (let ((x (readline))) (if (eq? x 'exit) (displayln \"good bye!\")(loop))))"
 	default:
 		fmt.Println("usage: calculator [option] <code>\n",
 			"        -r/--repl to enter repl\n",

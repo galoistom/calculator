@@ -47,6 +47,41 @@ func (env Environment) extend_environment(vars []Expr, vals []Expr) (Environment
 		fmt.Errorf("extend_environment: number of variables (%d) does not match number of values (%d)", len(vars), len(vals))
 }
 
+func bindParameters(parameters, args []Expr) ([]Expr, []Expr, error) {
+	vars := []Expr{}
+	vals := []Expr{}
+	for i, p := range parameters {
+		sym, ok := p.(Symbol)
+		if !ok {
+			return nil, nil, fmt.Errorf("parameters must be symbols, got %s", Print(p))
+		}
+		if sym.content == "&rest" {
+			if len(parameters) != i+2 {
+				return nil, nil, errors.New("&rest must be followed by exactly one parameter and be the last one")
+			}
+			rest, ok := parameters[i+1].(Symbol)
+			if !ok {
+				return nil, nil, errors.New("&rest must be followed by a symbol")
+			}
+			if len(args) < i {
+				return nil, nil, fmt.Errorf("too few arguments: expected at least %d, got %d", i, len(args))
+			}
+			vars = append(vars, rest)
+			vals = append(vals, List{args[i:]})
+			return vars, vals, nil
+		}
+		if i >= len(args) {
+			return nil, nil, fmt.Errorf("too few arguments: expected at least %d, got %d", i+1, len(args))
+		}
+		vars = append(vars, sym)
+		vals = append(vals, args[i])
+	}
+	if len(vars) != len(args) {
+		return nil, nil, fmt.Errorf("wrong number of arguments: expected %d, got %d", len(vars), len(args))
+	}
+	return vars, vals, nil
+}
+
 func (Number) exprNode() {}
 func (n Number) Print() string {
 	return Reduce(n.value).Print()
@@ -1088,7 +1123,11 @@ func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
 			case "procedure":
 				if p, ok := pro.args[1].(Procedure); ok {
 					a := listOfDelayedArgs(args, env)
-					new_env, err := p.env.extend_environment(p.parameters, a)
+					vars, vals, err := bindParameters(p.parameters, a)
+					if err != nil {
+						return nil, err
+					}
+					new_env, err := p.env.extend_environment(vars, vals)
 					if err != nil {
 						return nil, err
 					}
@@ -1096,7 +1135,11 @@ func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
 				}
 			case "macro":
 				macro := pro.args[1].(Macro)
-				newEnv, err := macro.defEnv.extend_environment(macro.para, args)
+				vars, vals, err := bindParameters(macro.para, args)
+				if err != nil {
+					return nil, err
+				}
+				newEnv, err := macro.defEnv.extend_environment(vars, vals)
 				if err != nil {
 					return nil, err
 				}
@@ -1140,6 +1183,13 @@ func listOfArgValues(exps []Expr, env *Environment) ([]Expr, error) {
 	return res, nil
 }
 
+func asArg(e Expr) Expr {
+	if t, ok := e.(*Thunk); ok {
+		return t
+	}
+	return &Thunk{false, e, nil}
+}
+
 func forceIt(obj *Thunk) (Expr, error) {
 	if obj.thunk {
 		result, err := actualValue(obj.exp, obj.env)
@@ -1177,7 +1227,7 @@ func evalMap(args []Expr, env *Environment) (Expr, error) {
 	l := xs.(List).args
 	res := make([]Expr, len(l))
 	for i, k := range l {
-		r, err := apply(proc, []Expr{&Thunk{false, k, nil}}, env)
+		r, err := apply(proc, []Expr{asArg(k)}, env)
 		if err != nil {
 			return nil, err
 		}
@@ -1215,7 +1265,7 @@ func evalForEach(args []Expr, env *Environment) (Expr, error) {
 	res := make([]Expr, le)
 	for k := range l {
 		for i := range le {
-			res[i] = &Thunk{false, x[i][k], nil}
+			res[i] = asArg(x[i][k])
 		}
 		if _, err := apply(proc, res, env); err != nil {
 			return nil, err
@@ -1236,7 +1286,7 @@ func evalFilter(args []Expr, env *Environment) (Expr, error) {
 	l := xs.(List).args
 	res := []Expr{}
 	for _, k := range l {
-		r, err := apply(proc, []Expr{&Thunk{false, k, nil}}, env)
+		r, err := apply(proc, []Expr{asArg(k)}, env)
 		if err != nil {
 			return nil, err
 		}
@@ -1282,7 +1332,7 @@ func evalFold(args []Expr, env *Environment) (Expr, error) {
 		return nil, fmt.Errorf("fold expects a list as its third argument, got %T", plist)
 	}
 	for _, k := range list.args {
-		init, err = apply(proc, []Expr{&Thunk{false, init, nil}, &Thunk{false, k, nil}}, env)
+		init, err = apply(proc, []Expr{asArg(init), asArg(k)}, env)
 		if err != nil {
 			return nil, err
 		}
@@ -1322,10 +1372,10 @@ func evalFuncApply(args []Expr, env *Environment) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		callArgs = append(callArgs, &Thunk{false, v, nil})
+		callArgs = append(callArgs, asArg(v))
 	}
 	for _, e := range lst.args {
-		callArgs = append(callArgs, &Thunk{false, e, nil})
+		callArgs = append(callArgs, asArg(e))
 	}
 	return apply(proc, callArgs, env)
 }
