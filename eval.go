@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -32,19 +31,6 @@ func make_frame(vars []Expr, vals []Expr) (frame, error) {
 		}
 	}
 	return res, nil
-}
-
-func (env Environment) extend_environment(vars []Expr, vals []Expr) (Environment, error) {
-	if len(vars) == len(vals) {
-		res, err := make_frame(vars, vals)
-		if err != nil {
-			return Environment{}, err
-		}
-		env.env = append([]frame{res}, env.env...)
-		return env, nil
-	}
-	return Environment{},
-		fmt.Errorf("extend_environment: number of variables (%d) does not match number of values (%d)", len(vars), len(vals))
 }
 
 func bindParameters(parameters, args []Expr) ([]Expr, []Expr, error) {
@@ -80,115 +66,6 @@ func bindParameters(parameters, args []Expr) ([]Expr, []Expr, error) {
 		return nil, nil, fmt.Errorf("wrong number of arguments: expected %d, got %d", len(vars), len(args))
 	}
 	return vars, vals, nil
-}
-
-func (Number) exprNode() {}
-func (n Number) Print() string {
-	return Reduce(n.value).Print()
-}
-func (x stringNumber) getValue() (Number, error) {
-	num := x.Value
-	if strings.Contains(num, ".") {
-		f, err := strconv.ParseFloat(num, 64)
-		if err != nil {
-			return Number{}, fmt.Errorf("failed to convert to float: %v", err)
-		}
-		return Number{Reduce(Real(f))}, nil
-	}
-	if strings.Contains(num, "/") {
-		parts := strings.Split(num, "/")
-		if len(parts) != 2 {
-			return Number{}, fmt.Errorf("invalid quotient: %s", num)
-		}
-		p, err := strconv.ParseInt(parts[0], 10, 64)
-		if err != nil {
-			return Number{}, err
-		}
-
-		q, err := strconv.ParseInt(parts[1], 10, 64)
-		if err != nil {
-			return Number{}, err
-		}
-		return Number{Reduce(Rational{p: int(p), q: int(q)})}, nil
-	}
-	i, err := strconv.Atoi(num)
-	if err != nil {
-		return Number{}, err
-	}
-	return Number{value: Integer(i)}, nil
-}
-
-func (String) exprNode() {}
-func (s String) Print() string {
-	return fmt.Sprintf("%s", s.content)
-}
-
-func (Symbol) exprNode() {}
-func (s Symbol) Print() string {
-	return fmt.Sprintf("'%s", s.content)
-}
-
-func (List) exprNode() {}
-func (l List) Print() string {
-	var b strings.Builder
-	b.WriteString("(listof")
-	for _, i := range l.args {
-		fmt.Fprintf(&b, " %s", i.Print())
-	}
-	b.WriteString(")")
-	return b.String()
-}
-
-func (Action) exprNode() {}
-func (f Action) Print() string {
-	return f.name
-}
-
-func (splice) exprNode() {}
-func (splice) Print() string {
-	return "(splice)"
-}
-
-func (Procedure) exprNode() {}
-func (Procedure) Print() string {
-	return "(Procedure)"
-}
-
-func (Hash) exprNode() {}
-func (h Hash) Print() string {
-	var b strings.Builder
-	b.WriteString("(hash:")
-	for i, j := range h.hash {
-		fmt.Fprintf(&b, " (%s: %s)", i, j.Print())
-	}
-	b.WriteString(")")
-	return b.String()
-}
-func (h *Hash) set(vari Expr, val Expr) {
-	h.hash[vari.Print()] = val
-}
-func (h Hash) ref(vari Expr) (Expr, bool) {
-	if e, ok := h.hash[vari.Print()]; ok {
-		return e, true
-	}
-	return nil, false
-}
-
-func (Thunk) exprNode() {}
-func (t Thunk) Print() string {
-	return fmt.Sprintf("(thunk: %v (%s))", t.thunk, t.exp.Print())
-}
-
-func (Macro) exprNode() {}
-func (m Macro) Print() string {
-	return fmt.Sprintf("(Macro %s)", m.name)
-}
-
-func Print(e Expr) string {
-	if e == nil {
-		return "Expr:nil"
-	}
-	return e.Print()
 }
 
 func InitEnvironment() (*Environment, error) {

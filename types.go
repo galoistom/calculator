@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 )
 
 // Core expression types
@@ -13,11 +14,12 @@ type Expr interface {
 	Print() string
 }
 
-type Environment struct {
-	env []frame
+func Print(e Expr) string {
+	if e == nil {
+		return "Expr:nil"
+	}
+	return e.Print()
 }
-
-type frame map[string]Expr
 
 type stringNumber struct {
 	Value string
@@ -26,18 +28,71 @@ type stringNumber struct {
 type Number struct {
 	value Value
 }
+func (Number) exprNode() {}
+func (n Number) Print() string {
+	return Reduce(n.value).Print()
+}
+func (x stringNumber) getValue() (Number, error) {
+	num := x.Value
+	if strings.Contains(num, ".") {
+		f, err := strconv.ParseFloat(num, 64)
+		if err != nil {
+			return Number{}, fmt.Errorf("failed to convert to float: %v", err)
+		}
+		return Number{Reduce(Real(f))}, nil
+	}
+	if strings.Contains(num, "/") {
+		parts := strings.Split(num, "/")
+		if len(parts) != 2 {
+			return Number{}, fmt.Errorf("invalid quotient: %s", num)
+		}
+		p, err := strconv.ParseInt(parts[0], 10, 64)
+		if err != nil {
+			return Number{}, err
+		}
+
+		q, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			return Number{}, err
+		}
+		return Number{Reduce(Rational{p: int(p), q: int(q)})}, nil
+	}
+	i, err := strconv.Atoi(num)
+	if err != nil {
+		return Number{}, err
+	}
+	return Number{value: Integer(i)}, nil
+}
 
 type Symbol struct {
 	content string
+}
+func (Symbol) exprNode() {}
+func (s Symbol) Print() string {
+	return fmt.Sprintf("'%s", s.content)
 }
 
 type List struct {
 	args []Expr
 }
+func (List) exprNode() {}
+func (l List) Print() string {
+	var b strings.Builder
+	b.WriteString("(listof")
+	for _, i := range l.args {
+		fmt.Fprintf(&b, " %s", i.Print())
+	}
+	b.WriteString(")")
+	return b.String()
+}
 
 type Action struct {
 	name string
 	f    func([]Expr) (Expr, error)
+}
+func (Action) exprNode() {}
+func (f Action) Print() string {
+	return f.name
 }
 
 type Procedure struct {
@@ -45,15 +100,42 @@ type Procedure struct {
 	parameters []Expr
 	env        *Environment
 }
+func (Procedure) exprNode() {}
+func (Procedure) Print() string {
+	return "(Procedure)"
+}
 
 type Hash struct {
 	hash map[string]Expr
+}
+func (Hash) exprNode() {}
+func (h Hash) Print() string {
+	var b strings.Builder
+	b.WriteString("(hash:")
+	for i, j := range h.hash {
+		fmt.Fprintf(&b, " (%s: %s)", i, j.Print())
+	}
+	b.WriteString(")")
+	return b.String()
+}
+func (h *Hash) set(vari Expr, val Expr) {
+	h.hash[vari.Print()] = val
+}
+func (h Hash) ref(vari Expr) (Expr, bool) {
+	if e, ok := h.hash[vari.Print()]; ok {
+		return e, true
+	}
+	return nil, false
 }
 
 type Thunk struct {
 	thunk bool
 	exp   Expr
 	env   *Environment
+}
+func (Thunk) exprNode() {}
+func (t Thunk) Print() string {
+	return fmt.Sprintf("(thunk: %v (%s))", t.thunk, t.exp.Print())
 }
 
 type Macro struct {
@@ -62,14 +144,45 @@ type Macro struct {
 	body   []Expr
 	defEnv *Environment
 }
+func (Macro) exprNode() {}
+func (m Macro) Print() string {
+	return fmt.Sprintf("(Macro %s)", m.name)
+}
 
 type String struct {
 	content string
+}
+func (String) exprNode() {}
+func (s String) Print() string {
+	return fmt.Sprintf("%s", s.content)
 }
 
 type splice struct {
 	args []Expr
 }
+func (splice) exprNode() {}
+func (splice) Print() string {
+	return "(splice)"
+}
+
+type frame map[string]Expr
+type Environment struct {
+	env []frame
+}
+func (env Environment) extend_environment(vars []Expr, vals []Expr) (Environment, error) {
+	if len(vars) == len(vals) {
+		res, err := make_frame(vars, vals)
+		if err != nil {
+			return Environment{}, err
+		}
+		env.env = append([]frame{res}, env.env...)
+		return env, nil
+	}
+	return Environment{},
+		fmt.Errorf("extend_environment: number of variables (%d) does not match number of values (%d)", len(vars), len(vals))
+}
+
+
 
 // Lexer and Parser types
 type TokenType int
@@ -280,14 +393,15 @@ func (a Real) Abs() Real {
 }
 
 func (x Real) Print() string {
-	if float64(x) - math.Floor(float64(x)) < 0.00001{
+	if float64(x)-math.Floor(float64(x)) < 0.00001 {
 		return fmt.Sprintf("%d", int(x))
-	} else if float64(x) - math.Floor(float64(x)) > 0.99999{
+	} else if float64(x)-math.Floor(float64(x)) > 0.99999 {
 		return fmt.Sprintf("%d", int(x)+1)
 	}
 	return fmt.Sprintf("%g", x)
 
 }
+
 // Implementation of Complex
 type Complex struct {
 	a float64
@@ -348,7 +462,7 @@ func (x Complex) Abs() Real {
 
 func (x Complex) Print() string {
 	if x.a < 0.00001 && x.a > -0.00001 {
-		return Real(x.b).Print()+"i"
+		return Real(x.b).Print() + "i"
 	} else if x.b < 0.00001 && x.b > -0.00001 {
 		return Real(x.a).Print()
 	} else if x.b < 0 {
@@ -504,14 +618,14 @@ func Reduce(a Value) Value {
 			return Reduce(Real(x.a))
 		}
 	case Real:
-		if float64(x) - math.Floor(float64(x)) < 0.00001{
+		if float64(x)-math.Floor(float64(x)) < 0.00001 {
 			return Integer(int(x))
-		} else if float64(x) - math.Floor(float64(x)) > 0.99999{
-			return Integer(int(x)+1)
+		} else if float64(x)-math.Floor(float64(x)) > 0.99999 {
+			return Integer(int(x) + 1)
 		}
 	case Rational:
-		if x.p % x.q ==0{
-			return Integer(int(x.p/x.q))
+		if x.p%x.q == 0 {
+			return Integer(int(x.p / x.q))
 		}
 	}
 	return a
@@ -573,4 +687,3 @@ func IsZero(a Value) bool {
 		panic(fmt.Sprintf("unsupported type: %T", a))
 	}
 }
-
