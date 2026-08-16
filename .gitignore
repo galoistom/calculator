@@ -1,3 +1,4 @@
+
 *~
 *.txt
 *calculator
@@ -6,4 +7,5 @@
 *.js
 *.html
 static/
+static_tiny/
 TAGS
