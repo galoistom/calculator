@@ -99,34 +99,45 @@ func InitEnvironment() (*Environment, error) {
 		"hash-ref!": {name: "hash-ref!",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 3 {
-					h := args[0].(*Hash)
-					if a, ok := h.ref(args[1]); ok {
-						return a, nil
+					if h, ok := args[0].(*Hash); ok {
+						if a, ok := h.ref(args[1]); ok {
+							return a, nil
+						}
+						h.set(args[1], args[2])
+						return Symbol{"ok"}, nil
 					}
-					h.set(args[1], args[2])
-					return Symbol{"ok"}, nil
+					return nil, errors.New("hash-ref! only accecpt hash")
 				}
 				return nil, fmt.Errorf("wrong number of arguments of hash-ref!, need 3, get %d", len(args))
 			}},
 		"hash-set!": {name: "hash-set!",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 3 {
-					args[0].(*Hash).set(args[1], args[2])
-					return Symbol{"ok"}, nil
+					if h, ok := args[0].(*Hash); ok {
+						h.set(args[1], args[2])
+						return Symbol{"ok"}, nil
+					}
+					return nil, errors.New("hash-ref! only accecpt hash")
 				}
 				return nil, fmt.Errorf("wrong number of arguments of hash-set!, need 3, get %d", len(args))
 			}},
 		"car": {name: "car",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
-					return args[0].(List).args[0], nil
+					if h, ok := args[0].(List); ok {
+						return h.args[0], nil
+					}
+					return nil, errors.New("car only accecpt list")
 				}
 				return nil, fmt.Errorf("wrong number of arguments of car, need 1, get %d", len(args))
 			}},
 		"cdr": {name: "cdr",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
-					return List{args[0].(List).args[1:]}, nil
+					if h, ok := args[0].(List); ok {
+						return List{h.args[1:]}, nil
+					}
+					return nil, errors.New("cdr only accecpt list")
 				}
 				return nil, fmt.Errorf("wrong number of arguments of cdr, need 1, get %d", len(args))
 			}},
@@ -252,42 +263,49 @@ func InitEnvironment() (*Environment, error) {
 		"list-tail": {name: "list-tail",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
-					list := args[0].(List)
-					num := args[1]
-					index, err := Int(num.(Number).value)
-					if err != nil {
-						return nil, err
+					if list, ok := args[0].(List); ok {
+						num := args[1]
+						index, err := Int(num.(Number).value)
+						if err != nil {
+							return nil, err
+						}
+						return List{list.args[index:]}, nil
 					}
-					return List{list.args[index:]}, nil
+					return nil, errors.New("list-tail only accept List")
 				}
 				return nil, fmt.Errorf("wrong number of arguments of list-tail, need 2, get %d", len(args))
 			}},
 		"list-set!": {name: "list-set!",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 3 {
-					list := args[0].(List)
-					num := args[1]
-					index, err := Int(num.(Number).value)
-					if err != nil {
-						return nil, err
+					list,ok1 := args[0].(List)
+					num,ok2 := args[1].(Number)
+					if ok1 && ok2{
+						index, err := Int(num.value)
+						if err != nil {
+							return nil, err
+						}
+						res := args[2]
+						list.args[int(index)] = res
+						return list, nil
 					}
-					res := args[2]
-					list.args[int(index)] = res
-					return list, nil
+					return nil, errors.New("list-set! wants (list? number? any)")
 				}
 				return nil, fmt.Errorf("wrong number of arguments of list-set!, need 3, get %d", len(args))
 			}},
 		"list-ref": {name: "list-ref",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
-					list := args[0].(List)
-					num := args[1]
-					index, err := Int(num.(Number).value)
-					if err != nil {
-						return nil, err
+					list,ok1 := args[0].(List)
+					num,ok2 := args[1].(Number)
+					if ok1 && ok2{
+						index, err := Int(num.value)
+						if err != nil {
+							return nil, err
+						}
+						return list.args[int(index)], nil
 					}
-					return list.args[int(index)], nil
-				}
+					return nil, errors.New("list-ref wants (list? number? any)")				}
 				return nil, fmt.Errorf("wrong number of arguments of list-ref, need 2, get %d", len(args))
 			}},
 		"null?": {name: "null?",
@@ -371,13 +389,21 @@ func InitEnvironment() (*Environment, error) {
 				case Number:
 					num := Value(Integer(0))
 					for _, k := range args {
-						num = Add(k.(Number).value, num)
+						if t,ok := k.(Number);ok{
+							num = Add(t.value, num)
+						} else {
+							return nil, errors.New("+ expects number")
+						}
 					}
 					return Number{num}, nil
 				case String:
 					var b strings.Builder
 					for _, k := range args {
-						fmt.Fprintf(&b, "%s", k.(String).content)
+						if t,ok := k.(String);ok{
+							fmt.Fprintf(&b, "%s", t.content)
+						} else {
+							return nil, errors.New("+ expects string")
+						}
 					}
 					return String{b.String()}, nil
 				}
@@ -540,7 +566,7 @@ func InitEnvironment() (*Environment, error) {
 						t := Add(a, Real(0)).(Real)
 						return Number{Reduce(Real(math.Asin(float64(t))))}, nil
 					}
-					return nil, errors.New("complex sin not implemented")
+					return nil, errors.New("complex arcsin not implemented")
 				}
 				return nil, fmt.Errorf("wrong number of arguments of arcsin, need 1, get %d", len(args))
 			}},
@@ -564,7 +590,7 @@ func InitEnvironment() (*Environment, error) {
 						t := Add(a, Real(0)).(Real)
 						return Number{Reduce(Real(math.Acos(float64(t))))}, nil
 					}
-					return nil, errors.New("complex cos not implemented")
+					return nil, errors.New("complex arccos not implemented")
 				}
 				return nil, fmt.Errorf("wrong number of arguments of arccos, need 1, get %d", len(args))
 			}},
