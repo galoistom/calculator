@@ -278,9 +278,9 @@ func InitEnvironment() (*Environment, error) {
 		"list-set!": {name: "list-set!",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 3 {
-					list,ok1 := args[0].(List)
-					num,ok2 := args[1].(Number)
-					if ok1 && ok2{
+					list, ok1 := args[0].(List)
+					num, ok2 := args[1].(Number)
+					if ok1 && ok2 {
 						index, err := Int(num.value)
 						if err != nil {
 							return nil, err
@@ -296,16 +296,17 @@ func InitEnvironment() (*Environment, error) {
 		"list-ref": {name: "list-ref",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
-					list,ok1 := args[0].(List)
-					num,ok2 := args[1].(Number)
-					if ok1 && ok2{
+					list, ok1 := args[0].(List)
+					num, ok2 := args[1].(Number)
+					if ok1 && ok2 {
 						index, err := Int(num.value)
 						if err != nil {
 							return nil, err
 						}
 						return list.args[int(index)], nil
 					}
-					return nil, errors.New("list-ref wants (list? number? any)")				}
+					return nil, errors.New("list-ref wants (list? number? any)")
+				}
 				return nil, fmt.Errorf("wrong number of arguments of list-ref, need 2, get %d", len(args))
 			}},
 		"null?": {name: "null?",
@@ -389,7 +390,7 @@ func InitEnvironment() (*Environment, error) {
 				case Number:
 					num := Value(Integer(0))
 					for _, k := range args {
-						if t,ok := k.(Number);ok{
+						if t, ok := k.(Number); ok {
 							num = Add(t.value, num)
 						} else {
 							return nil, errors.New("+ expects number")
@@ -399,7 +400,7 @@ func InitEnvironment() (*Environment, error) {
 				case String:
 					var b strings.Builder
 					for _, k := range args {
-						if t,ok := k.(String);ok{
+						if t, ok := k.(String); ok {
 							fmt.Fprintf(&b, "%s", t.content)
 						} else {
 							return nil, errors.New("+ expects string")
@@ -412,6 +413,12 @@ func InitEnvironment() (*Environment, error) {
 		"-": {name: "-",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("- shold be (-> number number number)")
+					}
+					if _, ok := args[1].(Number); !ok {
+						return nil, errors.New("- shold be (-> number number number)")
+					}
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					return Number{Minu(a, b)}, nil
@@ -426,6 +433,9 @@ func InitEnvironment() (*Environment, error) {
 			f: func(args []Expr) (Expr, error) {
 				num := Value(Integer(1))
 				for _, k := range args {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("* shold be (-> number ... number)")
+					}
 					num = Times(k.(Number).value, num)
 				}
 				return Number{num}, nil
@@ -433,6 +443,12 @@ func InitEnvironment() (*Environment, error) {
 		"/": {name: "/",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("/ shold be (-> number nonzero number)")
+					}
+					if _, ok := args[1].(Number); !ok {
+						return nil, errors.New("/ shold be (-> number nonzero number)")
+					}
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					res, err := Div(a, b)
@@ -443,6 +459,12 @@ func InitEnvironment() (*Environment, error) {
 		"=": {name: "=",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("= shold be (-> number number bool)")
+					}
+					if _, ok := args[1].(Number); !ok {
+						return nil, errors.New("= shold be (-> number number bool)")
+					}
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					if IsZero(Minu(a, b)) {
@@ -455,6 +477,12 @@ func InitEnvironment() (*Environment, error) {
 		"<": {name: "<",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("< shold be (-> number number bool)")
+					}
+					if _, ok := args[1].(Number); !ok {
+						return nil, errors.New("< shold be (-> number number bool)")
+					}
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					if a.Type() == ComplexType || b.Type() == ComplexType {
@@ -471,6 +499,12 @@ func InitEnvironment() (*Environment, error) {
 		"<=": {name: "<=",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("< shold be (-> number number bool)")
+					}
+					if _, ok := args[1].(Number); !ok {
+						return nil, errors.New("< shold be (-> number number bool)")
+					}
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					if a.Type() == ComplexType || b.Type() == ComplexType {
@@ -487,6 +521,12 @@ func InitEnvironment() (*Environment, error) {
 		">": {name: ">",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("> shold be (-> number number bool)")
+					}
+					if _, ok := args[1].(Number); !ok {
+						return nil, errors.New("> shold be (-> number number bool)")
+					}
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					if a.Type() == ComplexType || b.Type() == ComplexType {
@@ -503,6 +543,12 @@ func InitEnvironment() (*Environment, error) {
 		">=": {name: ">=",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New(">= shold be (-> number number bool)")
+					}
+					if _, ok := args[1].(Number); !ok {
+						return nil, errors.New(">= shold be (-> number number bool)")
+					}
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					if a.Type() == ComplexType || b.Type() == ComplexType {
@@ -519,6 +565,12 @@ func InitEnvironment() (*Environment, error) {
 		"pow": {name: "pow",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("pow shold be (-> real int complex)")
+					}
+					if _, ok := args[1].(Number); !ok {
+						return nil, errors.New("pow shold be (-> real int complex)")
+					}
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					x, ok := b.(Integer)
@@ -532,6 +584,12 @@ func InitEnvironment() (*Environment, error) {
 		"c": {name: "c",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 2 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("c shold be (-> real real complex)")
+					}
+					if _, ok := args[1].(Number); !ok {
+						return nil, errors.New("c shold be (-> real real complex)")
+					}
 					a := args[0].(Number).value
 					b := args[1].(Number).value
 					return Number{Add(a, Times(Complex{a: 0, b: 1}, b))}, nil
@@ -541,6 +599,9 @@ func InitEnvironment() (*Environment, error) {
 		"abs": {name: "abs",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("abs shold be (-> number real)")
+					}
 					a := args[0].(Number).value
 					return Number{Abs(a)}, nil
 				}
@@ -549,6 +610,9 @@ func InitEnvironment() (*Environment, error) {
 		"sin": {name: "sin",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("sin shold be (-> real real)")
+					}
 					a := args[0].(Number).value
 					if a.Type() <= ComplexType {
 						t := Add(a, Real(0)).(Real)
@@ -561,6 +625,9 @@ func InitEnvironment() (*Environment, error) {
 		"arcsin": {name: "arcsin",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("arcsin shold be (-> real real)")
+					}
 					a := args[0].(Number).value
 					if a.Type() <= ComplexType {
 						t := Add(a, Real(0)).(Real)
@@ -573,6 +640,9 @@ func InitEnvironment() (*Environment, error) {
 		"cos": {name: "cos",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("cos shold be (-> real real)")
+					}
 					a := args[0].(Number).value
 					if a.Type() <= ComplexType {
 						t := Add(a, Real(0)).(Real)
@@ -585,6 +655,9 @@ func InitEnvironment() (*Environment, error) {
 		"arccos": {name: "arccos",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("arccos shold be (-> real real)")
+					}
 					a := args[0].(Number).value
 					if a.Type() <= ComplexType {
 						t := Add(a, Real(0)).(Real)
@@ -597,6 +670,9 @@ func InitEnvironment() (*Environment, error) {
 		"ln": {name: "ln",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("ln shold be (-> real real)")
+					}
 					a := args[0].(Number).value
 					if a.Type() <= RealType {
 						t := Add(a, Real(0)).(Real)
@@ -609,6 +685,9 @@ func InitEnvironment() (*Environment, error) {
 		"exp": {name: "exp",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
+					if _, ok := args[0].(Number); !ok {
+						return nil, errors.New("exp shold be (-> number number)")
+					}
 					a := args[0].(Number).value
 					if a.Type() <= RealType {
 						t := Add(a, Real(0)).(Real)
@@ -626,11 +705,25 @@ func InitEnvironment() (*Environment, error) {
 		"int": {name: "int",
 			f: func(args []Expr) (Expr, error) {
 				if len(args) == 1 {
-					a := args[0].(Number).value
-					res, err := Int(a)
-					return Number{value: res}, err
+					if a, ok := args[0].(Number); ok {
+						res, err := Int(a.value)
+						return Number{res}, err
+					}
+					return nil, fmt.Errorf("int shoud be (-> number number)")
 				}
 				return nil, fmt.Errorf("wrong number of arguments of int, need 1, get %d", len(args))
+			}},
+		"mod": {name: "mod",
+			f: func(args []Expr) (Expr, error) {
+				if len(args) == 2 {
+					a, ok1 := args[0].(Number)
+					b, ok2 := args[1].(Number)
+					if !(ok1 && ok2) || a.value.Type() != IntType || b.value.Type() != IntType {
+						return nil, fmt.Errorf("mod shoud be (-> int int int)")
+					}
+					return Number{a.value.(Integer).mod(b.value.(Integer))}, nil
+				}
+				return nil, fmt.Errorf("wrong number of arguments of mod, need 2, get %d", len(args))
 			}},
 	}
 	for _, a := range composedAccessors() {
