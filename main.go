@@ -29,7 +29,7 @@ func main() {
 func getExpression() string {
 	input := ""
 	var err error
-	if len(os.Args) <= 1{
+	if len(os.Args) <= 1 {
 		fmt.Println("usage: calculator [option] <code>\n",
 			"        -r/--repl to enter repl\n",
 			"        -f/--file to read code from file\n",

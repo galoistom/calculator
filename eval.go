@@ -719,7 +719,7 @@ func InitEnvironment() (*Environment, error) {
 					a, ok1 := args[0].(Number)
 					b, ok2 := args[1].(Number)
 					if !(ok1 && ok2) || a.value.Type() != IntType || b.value.Type() != IntType {
-						return nil, fmt.Errorf("mod shoud be (-> int int int)")
+						return nil, fmt.Errorf("mod shoutd be (-> int int int)")
 					}
 					return Number{a.value.(Integer).mod(b.value.(Integer))}, nil
 				}
@@ -732,7 +732,7 @@ func InitEnvironment() (*Environment, error) {
 
 	for i := range primitiveAction {
 		vars = append(vars, Symbol{i})
-		vals = append(vals, List{[]Expr{Symbol{"primitive"}, primitiveAction[i]}})
+		vals = append(vals, primitiveAction[i])
 	}
 	new_env, err := env.extend_environment(vars, vals)
 	if err != nil {
@@ -789,8 +789,7 @@ func composedAccessors() []Action {
 
 func lookUpVariable(exp Symbol, env *Environment) (Expr, error) {
 	for _, frame := range env.env {
-		res, ok := frame[exp.content]
-		if ok {
+		if res, ok := frame[exp.content]; ok {
 			return res, nil
 		}
 	}
@@ -806,8 +805,7 @@ func evalAssignment(exp []Expr, env *Environment) error {
 		return errors.New("set! requires a variable name")
 	}
 	for _, j := range (*env).env {
-		_, a := j[target.content]
-		if a {
+		if _, a := j[target.content]; a {
 			res, err := Eval(exp[1], env)
 			if err != nil {
 				return err
@@ -1029,10 +1027,7 @@ func evalAnd(exp []Expr, env *Environment) (Expr, error) {
 
 func makeProcedure(par Expr, body []Expr, env *Environment) (Expr, error) {
 	if p, ok := par.(List); ok {
-		return List{[]Expr{
-			Symbol{"procedure"},
-			Procedure{body, p.args, env},
-		}}, nil
+		return Procedure{body, p.args, env}, nil
 	}
 	return nil, errors.New("makeProcedure: expected a list of parameters")
 }
@@ -1107,42 +1102,35 @@ func primitiveApply(proc List, args []Expr) (Expr, error) {
 }
 
 func apply(proc Expr, args []Expr, env *Environment) (Expr, error) {
-	if pro, ok := proc.(List); ok {
-		if pr, ok := pro.args[0].(Symbol); ok {
-			switch pr.content {
-			case "primitive":
-				a, err := listOfArgValues(args, env)
-				if err != nil {
-					return nil, err
-				}
-				return primitiveApply(pro, a)
-			case "procedure":
-				if p, ok := pro.args[1].(Procedure); ok {
-					a := listOfDelayedArgs(args, env)
-					vars, vals, err := bindParameters(p.parameters, a)
-					if err != nil {
-						return nil, err
-					}
-					new_env, err := p.env.extend_environment(vars, vals)
-					if err != nil {
-						return nil, err
-					}
-					return EvalSequence(p.body, &new_env)
-				}
-			case "macro":
-				macro := pro.args[1].(Macro)
-				vars, vals, err := bindParameters(macro.para, args)
-				if err != nil {
-					return nil, err
-				}
-				newEnv, err := macro.defEnv.extend_environment(vars, vals)
-				if err != nil {
-					return nil, err
-				}
-				expansion, err := EvalSequence(macro.body, &newEnv)
-				return Eval(expansion, env)
-			}
+	switch p := proc.(type) {
+	case Action:
+		a, err := listOfArgValues(args, env)
+		if err != nil {
+			return nil, err
 		}
+		return p.f(a)
+	case Procedure:
+		a := listOfDelayedArgs(args, env)
+		vars, vals, err := bindParameters(p.parameters, a)
+		if err != nil {
+			return nil, err
+		}
+		new_env, err := p.env.extend_environment(vars, vals)
+		if err != nil {
+			return nil, err
+		}
+		return EvalSequence(p.body, &new_env)
+	case Macro:
+		vars, vals, err := bindParameters(p.para, args)
+		if err != nil {
+			return nil, err
+		}
+		newEnv, err := p.defEnv.extend_environment(vars, vals)
+		if err != nil {
+			return nil, err
+		}
+		expansion, err := EvalSequence(p.body, &newEnv)
+		return Eval(expansion, env)
 	}
 	return nil, fmt.Errorf("invalid procedure: %s", Print(proc))
 }
@@ -1411,11 +1399,10 @@ func evalQuasi(e Expr, depth int, env *Environment) (Expr, error) {
 					if err != nil {
 						return nil, err
 					}
-					lv, ok := val.(List)
-					if !ok {
-						return nil, fmt.Errorf("unquote-splicing requires a list, got %s", Print(val))
+					if lv, ok := val.(List); ok {
+						return &splice{lv.args}, nil
 					}
-					return &splice{lv.args}, nil
+					return nil, fmt.Errorf("unquote-splicing requires a list, got %s", Print(val))
 				}
 				inner, err := evalQuasi(t.args[1], depth-1, env)
 				if err != nil {
@@ -1447,7 +1434,7 @@ func evalDefMacro(args []Expr, env *Environment) (Expr, error) {
 	para := args[1].(List)
 	body := args[2:]
 	macro := Macro{macro_Name, para.args, body, env}
-	env.env[0][macro_Name] = List{[]Expr{Symbol{"macro"}, macro}}
+	env.env[0][macro_Name] = macro
 	return macro, nil
 }
 
@@ -1456,9 +1443,7 @@ func Eval(exp Expr, env *Environment) (Expr, error) {
 		return nil, nil
 	}
 	switch x := exp.(type) {
-	case Number, String:
-		return x, nil
-	case *Thunk:
+	case *Thunk, Number, String:
 		return x, nil
 	case Symbol:
 		if v, err := lookUpVariable(x, env); err == nil {

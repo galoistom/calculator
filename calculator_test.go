@@ -282,7 +282,7 @@ func TestEvalApply(t *testing.T) {
 func TestEvalKeywordShadowing(t *testing.T) {
 	mustEval(t, "(let ((apply +)) (apply 1 2))", "3")
 	mustEval(t, "((lambda (apply) (apply 1 2)) +)", "3")
-	mustEval(t, "(define (map f l) (list (quote custom) f)) (map car (list 1 2))", "(listof 'custom (listof 'primitive car))")
+	mustEval(t, "(define (map f l) (list (quote custom) f)) (map car (list 1 2))", "(listof 'custom car)")
 	mustEval(t, "(define (eval x y) (quote custom)) (eval (quote a) (quote b))", "'custom")
 	mustEval(t, "(define x 5) (let ((a 1)) (+ a x))", "6")
 	mustEval(t, "(define x apply) x", "'apply")
@@ -486,7 +486,7 @@ func evalWithCounter(t *testing.T, code string, count *int) (string, error) {
 	}
 	newEnv, err := env.extend_environment(
 		[]Expr{Symbol{content: "count"}},
-		[]Expr{List{args: []Expr{Symbol{content: "primitive"}, action}}},
+		[]Expr{action},
 	)
 	if err != nil {
 		t.Fatalf("extend_environment error: %v", err)
